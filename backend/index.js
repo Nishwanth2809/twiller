@@ -303,6 +303,114 @@ app.post("/verify-payment", async (req, res) => {
   }
 });
 
+// ─── Password Generator (alpha only) ─────────────────────────────────────────
+function generateAlphaPassword(length = 12) {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+  let password = "";
+  for (let i = 0; i < length; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+}
+
+// ─── Check if same calendar day (IST) ────────────────────────────────────────
+function isSameDayIST(date1, date2) {
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const d1 = new Date(date1.getTime() + istOffset);
+  const d2 = new Date(date2.getTime() + istOffset);
+  return (
+    d1.getUTCFullYear() === d2.getUTCFullYear() &&
+    d1.getUTCMonth() === d2.getUTCMonth() &&
+    d1.getUTCDate() === d2.getUTCDate()
+  );
+}
+
+// Forgot Password
+app.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).send({ error: "Email is required" });
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).send({ error: "No account found with this email" });
+
+    // Check daily limit
+    if (user.lastPasswordReset && isSameDayIST(user.lastPasswordReset, new Date())) {
+      return res.status(429).send({
+        error: "You can use this option only one time per day.",
+        rateLimited: true,
+      });
+    }
+
+    // Generate alpha-only password
+    const newPassword = generateAlphaPassword(12);
+
+    // Update last reset timestamp
+    user.lastPasswordReset = new Date();
+    await user.save();
+
+    // Send email with new password
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        .header { background: linear-gradient(135deg, #1d9bf0, #7c3aed); padding: 30px; text-align: center; color: white; }
+        .header h1 { margin: 0; font-size: 28px; }
+        .header p { margin: 8px 0 0; opacity: 0.9; }
+        .body { padding: 30px; }
+        .password-box { background: #f3f4f6; border: 2px dashed #1d9bf0; border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0; }
+        .password-box .password { font-size: 28px; font-weight: bold; letter-spacing: 3px; color: #1d9bf0; font-family: monospace; }
+        .footer { background: #f9fafb; padding: 20px; text-align: center; color: #9ca3af; font-size: 13px; }
+        .warning { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px; margin: 16px 0; color: #92400e; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>🔐 Password Reset</h1>
+          <p>Twiller Account Recovery</p>
+        </div>
+        <div class="body">
+          <p style="font-size:16px;">Hi <strong>${user.displayName}</strong>,</p>
+          <p>We received a password reset request for your account. Here is your new generated password:</p>
+          <div class="password-box">
+            <p style="margin:0 0 8px; color:#6b7280; font-size:14px;">Your New Password</p>
+            <div class="password">${newPassword}</div>
+          </div>
+          <div class="warning">
+            ⚠️ <strong>Important:</strong> Please use this password to log in and consider changing it from your profile settings. This reset can only be used once per day.
+          </div>
+          <p style="color:#6b7280; font-size:14px;">If you didn't request this reset, please secure your account immediately.</p>
+        </div>
+        <div class="footer">
+          <p>© 2024 Twiller · This is an automated email. Please do not reply.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+    `;
+
+    await transporter.sendMail({
+      from: `"Twiller" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "🔐 Twiller - Your Password Has Been Reset",
+      html,
+    });
+
+    return res.status(200).send({
+      success: true,
+      message: "A new password has been sent to your email address.",
+      generatedPassword: newPassword,
+    });
+  } catch (error) {
+    console.error("forgot-password error:", error);
+    return res.status(500).send({ error: error.message });
+  }
+});
+
 // Post a tweet (with plan limit check)
 app.post("/post", async (req, res) => {
   try {

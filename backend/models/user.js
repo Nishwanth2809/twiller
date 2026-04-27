@@ -18,6 +18,7 @@ const UserSchema = mongoose.Schema({
   tweetCount: { type: Number, default: 0 },
   planExpiresAt: { type: Date, default: null },
   planActivatedAt: { type: Date, default: null },
+  lastPasswordReset: { type: Date, default: null },
 });
 
 export default mongoose.model("User", UserSchema);

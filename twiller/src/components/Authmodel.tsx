@@ -19,9 +19,10 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialMode?: 'login' | 'signup';
+  onForgotPassword?: () => void;
 }
 
-export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) {
+export default function AuthModal({ isOpen, onClose, initialMode = 'login', onForgotPassword }: AuthModalProps) {
   const { login, signup, isLoading } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>(initialMode);
   const [showPassword, setShowPassword] = useState(false);
@@ -217,6 +218,18 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                 <p className="text-red-400 text-sm">{errors.password}</p>
               )}
             </div>
+
+            {mode === 'login' && (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => { onClose(); onForgotPassword?.(); }}
+                  className="text-blue-400 hover:text-blue-300 text-sm font-medium"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
 
             <Button
               type="submit"
