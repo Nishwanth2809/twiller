@@ -35,6 +35,9 @@ const UserSchema = mongoose.Schema({
     }
   ],
   notificationsEnabled: { type: Boolean, default: false },
+  language: { type: String, default: 'en' },
+  languageOtp: { type: String, default: null },
+  languageOtpExpiresAt: { type: Date, default: null },
 });
 
 export default mongoose.model("User", UserSchema);

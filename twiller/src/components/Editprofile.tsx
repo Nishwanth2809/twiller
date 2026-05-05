@@ -22,6 +22,17 @@ const Editprofile = ({ isopen, onclose }: any) => {
     notificationsEnabled: user?.notificationsEnabled || false,
   });
   const [error, setError] = useState<any>({});
+  
+  const [selectedLang, setSelectedLang] = useState("en");
+  React.useEffect(() => {
+    const match = document.cookie.match(/googtrans=\/en\/([a-zA-Z-]+)/);
+    if (match) setSelectedLang(match[1]);
+  }, []);
+  const [showLangOtp, setShowLangOtp] = useState(false);
+  const [langOtpInput, setLangOtpInput] = useState("");
+  const [pendingLang, setPendingLang] = useState("");
+  const [otpMethod, setOtpMethod] = useState("");
+
   if (!isopen || !user) return null;
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -91,6 +102,37 @@ const Editprofile = ({ isopen, onclose }: any) => {
       setIsLoading(false);
     }
   };
+
+  const handleLanguageChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const lang = e.target.value;
+    if (lang === selectedLang) return;
+    setPendingLang(lang);
+    setIsLoading(true);
+    try {
+      const res = await axiosInstance.post("/request-language-change", { email: user?.email, targetLanguage: lang });
+      setOtpMethod(res.data.method);
+      setShowLangOtp(true);
+    } catch (err: any) {
+      setError({ general: err.response?.data?.error || "Failed to request language change" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const verifyLanguageOtp = async () => {
+    if (!langOtpInput) return;
+    setIsLoading(true);
+    try {
+      await axiosInstance.post("/verify-language-change", { email: user?.email, otp: langOtpInput, targetLanguage: pendingLang });
+      setSelectedLang(pendingLang);
+      document.cookie = `googtrans=/en/${pendingLang}; path=/`;
+      window.location.reload();
+    } catch (err: any) {
+      setError({ general: err.response?.data?.error || "Invalid OTP" });
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <Card className="w-full max-w-2xl bg-black border-gray-800 text-white max-h-[90vh] overflow-y-auto">
@@ -320,10 +362,58 @@ const Editprofile = ({ isopen, onclose }: any) => {
                   />
                 </button>
               </div>
+
+              {/* Language Selector */}
+              <div className="flex items-center justify-between pt-4 border-t border-gray-800">
+                <div className="space-y-0.5">
+                  <Label className="text-white text-base">Interface Language</Label>
+                  <p className="text-gray-400 text-sm">Select your preferred language</p>
+                </div>
+                <select 
+                  value={selectedLang} 
+                  onChange={handleLanguageChange} 
+                  className="bg-gray-900 border border-gray-700 text-white rounded p-2 focus:ring-blue-500 focus:border-blue-500"
+                  disabled={isLoading}
+                >
+                  <option value="en">English</option>
+                  <option value="es">Spanish</option>
+                  <option value="hi">Hindi</option>
+                  <option value="pt">Portuguese</option>
+                  <option value="zh-CN">Chinese</option>
+                  <option value="fr">French</option>
+                </select>
+              </div>
             </div>
           </form>
         </CardContent>
       </Card>
+
+      {showLangOtp && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
+          <div className="bg-gray-900 p-6 rounded-2xl w-full max-w-sm border border-gray-800 shadow-2xl">
+            <h3 className="text-white text-lg font-bold mb-2">Verify Language Change</h3>
+            <p className="text-gray-400 text-sm mb-4">
+              {otpMethod === "email" 
+                ? "An OTP was sent to your registered email address."
+                : "An OTP was sent to your registered mobile number."}
+            </p>
+            <input 
+              type="text" 
+              placeholder="Enter 6-digit OTP" 
+              value={langOtpInput} 
+              onChange={e => setLangOtpInput(e.target.value)} 
+              className="w-full bg-gray-950 border border-gray-700 text-white p-3 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:outline-none" 
+            />
+            <div className="flex gap-3">
+              <Button onClick={() => setShowLangOtp(false)} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white" disabled={isLoading}>Cancel</Button>
+              <Button onClick={verifyLanguageOtp} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white" disabled={isLoading}>
+                {isLoading ? "Verifying..." : "Confirm"}
+              </Button>
+            </div>
+            {error.general && <p className="text-red-400 text-sm mt-3 text-center">{error.general}</p>}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -623,6 +623,67 @@ app.post("/forgot-password", async (req, res) => {
   }
 });
 
+// Language Switch Routes
+app.post("/request-language-change", async (req, res) => {
+  try {
+    const { email, targetLanguage } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).send({ error: "User not found" });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.languageOtp = otp;
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+    user.languageOtpExpiresAt = expiresAt;
+    await user.save();
+
+    if (targetLanguage === 'fr') {
+      // Send to registered email
+      const html = `
+        <h3>Language Change Verification</h3>
+        <p>Your OTP to switch your language to French is: <strong style="font-size: 24px;">${otp}</strong></p>
+      `;
+      await sendTwillerEmail({ to: user.email, subject: "🔐 Twiller - Language Change OTP", html });
+      return res.status(200).send({ method: "email" });
+    } else {
+      // Send to registered mobile number (Simulated via email for testing without Twilio)
+      const phone = user.phoneNumber || "your registered mobile number";
+      const html = `
+        <div style="background-color: #f3f4f6; padding: 20px;">
+          <p style="color: #666; font-size: 12px;">[SIMULATED SMS GATEWAY]</p>
+          <p>This message was sent to <strong>${phone}</strong>.</p>
+          <p>Your Twiller OTP to switch language is: <strong>${otp}</strong></p>
+        </div>
+      `;
+      await sendTwillerEmail({ to: user.email, subject: `SMS to ${phone} - OTP`, html });
+      return res.status(200).send({ method: "phone", phoneMasked: phone.substring(0, 3) + "****" + phone.slice(-2) });
+    }
+  } catch (error) {
+    return res.status(500).send({ error: error.message });
+  }
+});
+
+app.post("/verify-language-change", async (req, res) => {
+  try {
+    const { email, otp, targetLanguage } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).send({ error: "User not found" });
+
+    if (!user.languageOtp || user.languageOtp !== otp || new Date() > user.languageOtpExpiresAt) {
+      return res.status(400).send({ error: "Invalid or expired OTP" });
+    }
+
+    user.language = targetLanguage;
+    user.languageOtp = null;
+    user.languageOtpExpiresAt = null;
+    await user.save();
+
+    return res.status(200).send({ success: true, language: user.language });
+  } catch (error) {
+    return res.status(500).send({ error: error.message });
+  }
+});
+
 // Generate Audio OTP
 app.post("/generate-audio-otp", async (req, res) => {
   try {
