@@ -482,8 +482,21 @@ app.post("/forgot-password", async (req, res) => {
 
     // Update password in Firebase Auth
     try {
-      const firebaseUser = await admin.auth().getUserByEmail(user.email);
-      await admin.auth().updateUser(firebaseUser.uid, { password: newPassword });
+      try {
+        const firebaseUser = await admin.auth().getUserByEmail(user.email);
+        await admin.auth().updateUser(firebaseUser.uid, { password: newPassword });
+      } catch (err) {
+        if (err.code === 'auth/user-not-found') {
+          // Sync missing user to Firebase
+          await admin.auth().createUser({
+            email: user.email,
+            password: newPassword,
+            displayName: user.displayName,
+          });
+        } else {
+          throw err;
+        }
+      }
     } catch (fbErr) {
       console.error("Firebase password update failed:", fbErr.message);
       return res.status(500).send({ error: "Failed to update password. Please try again." });
