@@ -4,7 +4,7 @@ import { Card, CardContent } from "./ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Textarea } from "./ui/textarea";
 import { Button } from "./ui/button";
-import { Image, Smile, Calendar, MapPin, BarChart3, Globe, Crown, Lock } from "lucide-react";
+import { Image, Smile, Calendar, MapPin, BarChart3, Globe, Crown, Lock, Mic } from "lucide-react";
 import { Separator } from "./ui/separator";
 import axios from "axios";
 import axiosInstance from "@/lib/axiosInstance";
@@ -23,6 +23,11 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
   const [imageurl, setimageurl] = useState("");
   const [planInfo, setPlanInfo] = useState<any>(null);
   const [limitError, setLimitError] = useState("");
+  const [audioData, setAudioData] = useState("");
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [showAudioOtpModal, setShowAudioOtpModal] = useState(false);
+  const [otpInput, setOtpInput] = useState("");
+  const [audioOtp, setAudioOtp] = useState("");
   const maxLength = 200;
 
   useEffect(() => {
@@ -48,18 +53,24 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
         author: user?._id,
         content,
         image: imageurl,
+        audio: audioData,
+        audioDuration,
+        audioOtp,
       };
       const res = await axiosInstance.post("/post", tweetdata);
       onTweetPosted(res.data);
       setContent("");
       setimageurl("");
+      setAudioData("");
+      setAudioOtp("");
+      setOtpInput("");
       // Refresh plan info after posting
       await fetchPlanInfo();
     } catch (error: any) {
       if (error.response?.data?.limitReached) {
         setLimitError(error.response.data.error);
       } else {
-        console.log(error);
+        setLimitError(error.response?.data?.error || "Failed to post tweet");
       }
     } finally {
       setIsLoading(false);
@@ -94,6 +105,41 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    
+    if (file.size > 100 * 1024 * 1024) {
+      setLimitError("Audio file size exceeds 100 MB limit.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      const audioObj = new window.Audio(dataUrl);
+      audioObj.onloadedmetadata = async () => {
+        if (audioObj.duration > 300) {
+          setLimitError("Audio duration exceeds 5 minutes limit.");
+          return;
+        }
+        
+        setIsLoading(true);
+        try {
+          await axiosInstance.post("/generate-audio-otp", { email: user?.email });
+          setAudioData(dataUrl);
+          setAudioDuration(audioObj.duration);
+          setShowAudioOtpModal(true);
+        } catch (error: any) {
+          setLimitError(error.response?.data?.error || "Failed to send OTP for audio.");
+        } finally {
+          setIsLoading(false);
+        }
+      };
+    };
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -176,6 +222,13 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
                   </p>
                 )}
 
+                {audioData && (
+                  <div className="mt-2 p-2 bg-gray-900 rounded-xl flex items-center justify-between border border-gray-800">
+                    <audio controls src={audioData} className="h-10 w-full max-w-xs" />
+                    <button type="button" onClick={() => { setAudioData(""); setAudioOtp(""); }} className="text-red-400 text-sm font-bold ml-4 hover:underline">Remove</button>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between mt-4">
                   <div className="flex items-center space-x-4 text-blue-400">
                     <label
@@ -189,6 +242,20 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
                         id="tweetImage"
                         className="hidden"
                         onChange={handlePhotoUpload}
+                        disabled={isLoading}
+                      />
+                    </label>
+                    <label
+                      htmlFor="tweetAudio"
+                      className="p-2 rounded-full hover:bg-blue-900/20 cursor-pointer"
+                    >
+                      <Mic className="h-5 w-5" />
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        id="tweetAudio"
+                        className="hidden"
+                        onChange={handleAudioUpload}
                         disabled={isLoading}
                       />
                     </label>
@@ -274,6 +341,26 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
           </div>
         )}
       </CardContent>
+
+      {showAudioOtpModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 p-6 rounded-2xl w-full max-w-sm border border-gray-800 shadow-2xl">
+            <h3 className="text-white text-lg font-bold mb-2">Verify Audio Upload</h3>
+            <p className="text-gray-400 text-sm mb-4">An OTP was sent to your email to authorize this audio upload.</p>
+            <input 
+              type="text" 
+              placeholder="Enter 6-digit OTP" 
+              value={otpInput} 
+              onChange={e => setOtpInput(e.target.value)} 
+              className="w-full bg-gray-950 border border-gray-700 text-white p-3 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:outline-none" 
+            />
+            <div className="flex gap-3">
+              <Button onClick={() => { setShowAudioOtpModal(false); setAudioData(""); }} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white">Cancel</Button>
+              <Button onClick={() => { setAudioOtp(otpInput); setShowAudioOtpModal(false); }} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white">Confirm</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 };

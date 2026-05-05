@@ -22,6 +22,8 @@ const UserSchema = mongoose.Schema({
   lastPasswordReset: { type: Date, default: null },
   loginOtp: { type: String, default: null },
   loginOtpExpiresAt: { type: Date, default: null },
+  audioOtp: { type: String, default: null },
+  audioOtpExpiresAt: { type: Date, default: null },
   loginHistory: [
     {
       browser: String,

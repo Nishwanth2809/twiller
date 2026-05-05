@@ -48,7 +48,8 @@ if (!admin.apps.length) {
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "100mb" }));
+app.use(express.urlencoded({ limit: "100mb", extended: true }));
 
 // ─── Razorpay Instance ────────────────────────────────────────────────────────
 const razorpay = new Razorpay({
@@ -622,6 +623,38 @@ app.post("/forgot-password", async (req, res) => {
   }
 });
 
+// Generate Audio OTP
+app.post("/generate-audio-otp", async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).send({ error: "User not found" });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.audioOtp = otp;
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+    user.audioOtpExpiresAt = expiresAt;
+    await user.save();
+
+    const html = `
+      <h3>Audio Upload Verification</h3>
+      <p>Your OTP for uploading an audio tweet is: <strong style="font-size: 24px;">${otp}</strong></p>
+      <p>This OTP will expire in 10 minutes.</p>
+    `;
+    
+    await sendTwillerEmail({
+      to: user.email,
+      subject: "🔐 Twiller - Audio Upload OTP",
+      html,
+    });
+
+    return res.status(200).send({ success: true });
+  } catch (error) {
+    return res.status(500).send({ error: error.message });
+  }
+});
+
 // Post a tweet (with plan limit check)
 app.post("/post", async (req, res) => {
   try {
@@ -636,6 +669,33 @@ app.post("/post", async (req, res) => {
       user.plan = "free";
       user.tweetCount = 0;
       user.planExpiresAt = null;
+      await user.save();
+    }
+
+    if (req.body.audio) {
+      if (!req.body.audioOtp || req.body.audioOtp !== user.audioOtp || new Date() > user.audioOtpExpiresAt) {
+        return res.status(401).send({ error: "Valid Audio OTP is required to post an audio tweet." });
+      }
+      
+      const now = new Date();
+      const istTime = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+      const hours = istTime.getUTCHours();
+      if (hours < 14 || hours >= 19) {
+        return res.status(403).send({ error: "Audio tweets can only be posted between 2:00 PM and 7:00 PM IST." });
+      }
+
+      const sizeInBytes = req.body.audio.length * (3 / 4);
+      if (sizeInBytes > 100 * 1024 * 1024) {
+        return res.status(400).send({ error: "Audio file size exceeds 100 MB limit." });
+      }
+
+      if (req.body.audioDuration && req.body.audioDuration > 300) {
+        return res.status(400).send({ error: "Audio duration exceeds 5 minutes limit." });
+      }
+      
+      // Clear OTP after successful validation
+      user.audioOtp = null;
+      user.audioOtpExpiresAt = null;
       await user.save();
     }
 

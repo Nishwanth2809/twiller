@@ -112,6 +112,12 @@ export default function TweetCard({ tweet }: any) {
               </div>
             )}
 
+            {tweetstate.audio && (
+              <div className="mb-3 rounded-xl overflow-hidden border border-gray-800 bg-gray-900/50 p-2">
+                <audio controls src={tweetstate.audio} className="w-full h-10" />
+              </div>
+            )}
+
             <div className="flex items-center justify-between max-w-md">
               <Button
                 variant="ghost"
