@@ -76,6 +76,22 @@ const transporter = nodemailer.createTransport({
   socketTimeout: 10000,
 });
 
+async function sendTwillerEmail(mailOptions) {
+  if (process.env.APPS_SCRIPT_URL) {
+    try {
+      const response = await fetch(process.env.APPS_SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(mailOptions),
+      });
+      return await response.json();
+    } catch (e) {
+      console.error("Apps Script email failed:", e);
+    }
+  }
+  return transporter.sendMail(mailOptions);
+}
+
 // ─── Plan Config ──────────────────────────────────────────────────────────────
 const PLANS = {
   free:   { limit: 1,        price: 0,      label: "Free Plan" },
@@ -157,7 +173,7 @@ async function sendInvoiceEmail(email, displayName, plan, paymentId, amount) {
   </html>
   `;
 
-  await transporter.sendMail({
+  await sendTwillerEmail({
     from: `"Twiller" <${process.env.EMAIL_USER}>`,
     to: email,
     subject: `🎉 Twiller ${planConfig.label} - Payment Confirmed`,
@@ -229,7 +245,7 @@ app.post("/log-session", async (req, res) => {
         <p>This OTP will expire in 10 minutes.</p>
       `;
       try {
-        await transporter.sendMail({
+        await sendTwillerEmail({
           from: `"Twiller" <${process.env.EMAIL_USER}>`,
           to: user.email,
           subject: "🔐 Twiller - Login Verification OTP",
@@ -579,7 +595,7 @@ app.post("/forgot-password", async (req, res) => {
     `;
 
     try {
-      await transporter.sendMail({
+      await sendTwillerEmail({
         from: `"Twiller" <${process.env.EMAIL_USER}>`,
         to: user.email,
         subject: "🔐 Twiller - Your Password Has Been Reset",
