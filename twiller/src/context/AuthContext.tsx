@@ -33,6 +33,7 @@ interface User {
     timestamp: string;
     status: string;
   }>;
+  notificationsEnabled?: boolean;
 }
 
 interface AuthContextType {
@@ -50,6 +51,7 @@ interface AuthContextType {
     location: string;
     website: string;
     avatar: string;
+    notificationsEnabled?: boolean;
   }) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
@@ -213,6 +215,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     location: string;
     website: string;
     avatar: string;
+    notificationsEnabled?: boolean;
   }) => {
     if (!user) return;
     setIsLoading(true);

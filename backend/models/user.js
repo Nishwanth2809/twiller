@@ -34,6 +34,7 @@ const UserSchema = mongoose.Schema({
       status: String,
     }
   ],
+  notificationsEnabled: { type: Boolean, default: false },
 });
 
 export default mongoose.model("User", UserSchema);

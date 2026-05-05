@@ -19,6 +19,7 @@ const Editprofile = ({ isopen, onclose }: any) => {
     location: "Earth",
     website: "example.com",
     avatar: user?.avatar || "",
+    notificationsEnabled: user?.notificationsEnabled || false,
   });
   const [error, setError] = useState<any>({});
   if (!isopen || !user) return null;
@@ -62,7 +63,7 @@ const Editprofile = ({ isopen, onclose }: any) => {
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: string, value: any) => {
     setFormdata((prev) => ({ ...prev, [field]: value }));
     if (error[field]) {
       setError((prev: any) => ({ ...prev, [field]: "" }));
@@ -287,6 +288,37 @@ const Editprofile = ({ isopen, onclose }: any) => {
                     {formData.website.length}/100
                   </p>
                 </div>
+              </div>
+
+              {/* Notifications Toggle */}
+              <div className="flex items-center justify-between pt-4 border-t border-gray-800">
+                <div className="space-y-0.5">
+                  <Label className="text-white text-base">Keyword Notifications</Label>
+                  <p className="text-gray-400 text-sm">
+                    Get browser notifications when tweets contain "cricket" or "science"
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!formData.notificationsEnabled && Notification.permission !== "granted") {
+                      Notification.requestPermission();
+                    }
+                    handleInputChange("notificationsEnabled", !formData.notificationsEnabled);
+                  }}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    formData.notificationsEnabled ? "bg-blue-500" : "bg-gray-700"
+                  }`}
+                  role="switch"
+                  aria-checked={formData.notificationsEnabled}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      formData.notificationsEnabled ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
               </div>
             </div>
           </form>

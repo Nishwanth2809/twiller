@@ -5,6 +5,7 @@ import LoadingSpinner from "./loading-spinner";
 import TweetCard from "./TweetCard";
 import TweetComposer from "./TweetComposer";
 import axiosInstance from "@/lib/axiosInstance";
+import { useAuth } from "@/context/AuthContext";
 
 interface Tweet {
   id: string;
@@ -86,6 +87,7 @@ const tweets: Tweet[] = [
   },
 ];
 const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
+  const { user } = useAuth();
   const [tweets, setTweets] = useState<any>([]);
   const [loading, setloading] = useState(false);
   const fetchTweets = async () => {
@@ -102,6 +104,34 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
   useEffect(() => {
     fetchTweets();
   }, []);
+
+  useEffect(() => {
+    if (user?.notificationsEnabled && "Notification" in window && Notification.permission === "granted" && tweets.length > 0) {
+      const notifiedIds = JSON.parse(localStorage.getItem("notified_tweets") || "[]");
+      let updatedIds = [...notifiedIds];
+      let notifiedCount = 0;
+      
+      tweets.forEach((tweet: any) => {
+        if (!notifiedIds.includes(tweet._id) && tweet.author?._id !== user._id) {
+          const content = tweet.content?.toLowerCase() || "";
+          if (content.includes("cricket") || content.includes("science")) {
+             updatedIds.push(tweet._id);
+             if (notifiedCount < 3) { // limit popups
+               new Notification(`Interesting Tweet from ${tweet.author?.displayName || "User"}`, {
+                 body: tweet.content,
+                 icon: tweet.author?.avatar || "/favicon.ico"
+               });
+               notifiedCount++;
+             }
+          }
+        }
+      });
+      
+      if (updatedIds.length > notifiedIds.length) {
+        localStorage.setItem("notified_tweets", JSON.stringify(updatedIds));
+      }
+    }
+  }, [tweets, user?.notificationsEnabled]);
   const handlenewtweet = (newtweet: any) => {
     setTweets((prev: any) => [newtweet, ...prev]);
   };
