@@ -8,6 +8,7 @@ const UserSchema = mongoose.Schema({
   bio: { type: String, default: "" },
   location: { type: String, default: "" },
   website: { type: String, default: "" },
+  phoneNumber: { type: String, default: "" },
   joinedDate: { type: Date, default: Date.now() },
   // Subscription fields
   plan: {
@@ -19,6 +20,18 @@ const UserSchema = mongoose.Schema({
   planExpiresAt: { type: Date, default: null },
   planActivatedAt: { type: Date, default: null },
   lastPasswordReset: { type: Date, default: null },
+  loginOtp: { type: String, default: null },
+  loginOtpExpiresAt: { type: Date, default: null },
+  loginHistory: [
+    {
+      browser: String,
+      os: String,
+      device: String,
+      ip: String,
+      timestamp: { type: Date, default: Date.now },
+      status: String,
+    }
+  ],
 });
 
 export default mongoose.model("User", UserSchema);

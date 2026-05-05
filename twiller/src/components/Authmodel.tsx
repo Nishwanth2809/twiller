@@ -12,20 +12,20 @@ import { Input } from './ui/input';
 import { Separator } from './ui/separator';
 import { useAuth } from '@/context/AuthContext';
 import TwitterLogo from './Twitterlogo';
-
-
+import { useRouter } from 'next/navigation';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialMode?: 'login' | 'signup';
-  onForgotPassword?: () => void;
 }
 
-export default function AuthModal({ isOpen, onClose, initialMode = 'login', onForgotPassword }: AuthModalProps) {
-  const { login, signup, isLoading } = useAuth();
+export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) {
+  const { login, signup, isLoading, otpPendingEmail, verifyOtp, cancelOtp } = useAuth();
+  const router = useRouter();
   const [mode, setMode] = useState<'login' | 'signup'>(initialMode);
   const [showPassword, setShowPassword] = useState(false);
+  const [otp, setOtp] = useState('');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -99,6 +99,61 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login', onFo
     setErrors({});
     setFormData({ email: '', password: '', username: '', displayName: '' });
   };
+
+  if (otpPendingEmail) {
+    return (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <Card className="w-full max-w-md bg-black border-gray-800 text-white">
+          <CardHeader className="relative pb-6">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-4 top-4 text-white hover:bg-gray-900"
+              onClick={() => { cancelOtp(); onClose(); }}
+            >
+              <X className="h-5 w-5" />
+            </Button>
+            <div className="text-center">
+              <div className="mb-6 flex justify-center">
+                <TwitterLogo size="xl" className="text-white" />
+              </div>
+              <CardTitle className="text-2xl font-bold">Verification Required</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <p className="text-center text-gray-400">
+              We detected a Chrome browser. Please enter the OTP sent to your email to continue.
+            </p>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-white">Enter OTP</Label>
+                <Input
+                  type="text"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  className="bg-transparent border-gray-600 text-white placeholder-gray-400 focus:border-blue-500 text-center text-lg tracking-widest"
+                  maxLength={6}
+                  disabled={isLoading}
+                />
+              </div>
+              <Button
+                onClick={async () => {
+                  try {
+                    await verifyOtp(otp);
+                    onClose();
+                  } catch (err) {}
+                }}
+                className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 rounded-full text-lg"
+                disabled={isLoading || otp.length < 6}
+              >
+                {isLoading ? <LoadingSpinner size="sm" /> : "Verify OTP"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
@@ -223,7 +278,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login', onFo
               <div className="text-right">
                 <button
                   type="button"
-                  onClick={() => { onClose(); onForgotPassword?.(); }}
+                  onClick={() => { onClose(); router.push('/forgot-password'); }}
                   className="text-blue-400 hover:text-blue-300 text-sm font-medium"
                 >
                   Forgot password?

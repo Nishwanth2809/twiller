@@ -127,8 +127,8 @@ export default function Sidebar({
                 className="w-full justify-start p-3 rounded-full hover:bg-gray-900"
               >
                 <Avatar className="h-10 w-10 mr-3">
-                  <AvatarImage src={user.avatar} alt={user.displayName} />
-                  <AvatarFallback>{user.displayName[0]}</AvatarFallback>
+                  <AvatarImage src={user.avatar} alt={user.displayName || "User"} />
+                  <AvatarFallback>{user.displayName ? user.displayName[0] : user.username ? user.username[0] : "U"}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 text-left">
                   <div className="text-white font-semibold">{user.displayName}</div>

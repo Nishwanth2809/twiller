@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ArrowLeft, Mail, Phone, KeyRound, Copy, Check, AlertTriangle, Shield, RefreshCw } from "lucide-react";
+import { ArrowLeft, Mail, Phone, KeyRound, Check, AlertTriangle, Shield, RefreshCw } from "lucide-react";
 import axiosInstance from "@/lib/axiosInstance";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/context/firebase";
@@ -11,8 +11,6 @@ export default function ForgotPassword({ onBack }: { onBack: () => void }) {
   const [emailOrPhone, setEmailOrPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [generatedPassword, setGeneratedPassword] = useState("");
-  const [copied, setCopied] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [rateLimited, setRateLimited] = useState(false);
 
@@ -35,7 +33,6 @@ export default function ForgotPassword({ onBack }: { onBack: () => void }) {
       });
 
       if (res.data.success) {
-        setGeneratedPassword(res.data.generatedPassword);
         setSuccess(true);
 
         // Also trigger Firebase password reset link
@@ -55,12 +52,6 @@ export default function ForgotPassword({ onBack }: { onBack: () => void }) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(generatedPassword);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -98,29 +89,7 @@ export default function ForgotPassword({ onBack }: { onBack: () => void }) {
                   <span>New password generated and sent to <strong>{emailOrPhone}</strong></span>
                 </div>
 
-                {/* Generated Password Display */}
-                <div className="bg-gray-900 border border-gray-700 rounded-2xl p-5 text-center">
-                  <p className="text-gray-400 text-sm mb-3">Your New Password</p>
-                  <div className="flex items-center justify-center gap-3">
-                    <span className="text-2xl font-mono font-bold text-blue-400 tracking-widest select-all">
-                      {generatedPassword}
-                    </span>
-                    <button
-                      onClick={handleCopy}
-                      className="p-2 rounded-lg hover:bg-gray-800 transition-colors"
-                      title="Copy password"
-                    >
-                      {copied ? (
-                        <Check className="h-5 w-5 text-green-400" />
-                      ) : (
-                        <Copy className="h-5 w-5 text-gray-400" />
-                      )}
-                    </button>
-                  </div>
-                  <p className="text-gray-500 text-xs mt-3">
-                    Only contains uppercase and lowercase letters
-                  </p>
-                </div>
+
 
                 {/* Instructions */}
                 <div className="bg-yellow-950/40 border border-yellow-800 rounded-2xl p-4">

@@ -22,10 +22,17 @@ interface User {
   email: string;
   website: string;
   location: string;
-  // Subscription fields
   plan: "free" | "bronze" | "silver" | "gold";
   tweetCount: number;
   planExpiresAt: string | null;
+  loginHistory?: Array<{
+    browser: string;
+    os: string;
+    device: string;
+    ip: string;
+    timestamp: string;
+    status: string;
+  }>;
 }
 
 interface AuthContextType {
@@ -48,6 +55,9 @@ interface AuthContextType {
   isLoading: boolean;
   googlesignin: () => void;
   refreshUser: () => Promise<void>;
+  otpPendingEmail: string | null;
+  verifyOtp: (otp: string) => Promise<void>;
+  cancelOtp: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -65,6 +75,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [otpPendingEmail, setOtpPendingEmail] = useState<string | null>(null);
+
+  const handleSessionAccess = async (email: string) => {
+    try {
+      const res = await axiosInstance.post("/log-session", { email });
+      if (res.data.requiresOtp) {
+        setOtpPendingEmail(email);
+        return false;
+      }
+      return true;
+    } catch (error: any) {
+      if (error.response?.status === 403) {
+        alert(error.response.data.error);
+        await signOut(auth);
+      }
+      throw error;
+    }
+  };
+
+  const cancelOtp = async () => {
+    setOtpPendingEmail(null);
+    await signOut(auth);
+  };
+
+  const verifyOtp = async (otp: string) => {
+    if (!otpPendingEmail) return;
+    setIsLoading(true);
+    try {
+      await axiosInstance.post("/verify-login-otp", { email: otpPendingEmail, otp });
+      await fetchAndSetUser(otpPendingEmail);
+      setOtpPendingEmail(null);
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Invalid OTP");
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const fetchAndSetUser = async (email: string) => {
     const res = await axiosInstance.get("/loggedinuser", {
@@ -93,6 +141,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           await fetchAndSetUser(firebaseUser.email);
         } catch (err) {
           console.log("Failed to fetch user:", err);
+          // User exists in Firebase but not in MongoDB — clear stale state
+          setUser(null);
+          localStorage.removeItem("twitter-user");
         }
       } else {
         setUser(null);
@@ -105,9 +156,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
-    const usercred = await signInWithEmailAndPassword(auth, email, password);
-    await fetchAndSetUser(usercred.user.email!);
-    setIsLoading(false);
+    try {
+      const usercred = await signInWithEmailAndPassword(auth, email, password);
+      const allowed = await handleSessionAccess(usercred.user.email!);
+      if (allowed) {
+        await fetchAndSetUser(usercred.user.email!);
+      }
+    } catch (error: any) {
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const signup = async (
@@ -117,22 +176,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     displayName: string
   ) => {
     setIsLoading(true);
-    const usercred = await createUserWithEmailAndPassword(auth, email, password);
-    const firebaseUser = usercred.user;
-    const newuser: any = {
-      username,
-      displayName,
-      avatar:
-        firebaseUser.photoURL ||
-        "https://images.pexels.com/photos/1139743/pexels-photo-1139743.jpeg?auto=compress&cs=tinysrgb&w=400",
-      email: firebaseUser.email,
-    };
-    const res = await axiosInstance.post("/register", newuser);
-    if (res.data) {
-      setUser(res.data);
-      localStorage.setItem("twitter-user", JSON.stringify(res.data));
+    try {
+      const usercred = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = usercred.user;
+      const newuser: any = {
+        username,
+        displayName,
+        avatar:
+          firebaseUser.photoURL ||
+          "https://images.pexels.com/photos/1139743/pexels-photo-1139743.jpeg?auto=compress&cs=tinysrgb&w=400",
+        email: firebaseUser.email,
+      };
+      const res = await axiosInstance.post("/register", newuser);
+      
+      const allowed = await handleSessionAccess(firebaseUser.email!);
+      if (allowed && res.data) {
+        setUser(res.data);
+        localStorage.setItem("twitter-user", JSON.stringify(res.data));
+      }
+    } catch (error: any) {
+      throw error;
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const logout = async () => {
@@ -195,6 +261,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         userData = registerRes.data;
       }
 
+      const allowed = await handleSessionAccess(firebaseUser.email);
+      if (!allowed) {
+        setIsLoading(false);
+        return;
+      }
+
       if (userData) {
         setUser(userData);
         localStorage.setItem("twitter-user", JSON.stringify(userData));
@@ -220,6 +292,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         isLoading,
         googlesignin,
         refreshUser,
+        otpPendingEmail,
+        verifyOtp,
+        cancelOtp,
       }}
     >
       {children}

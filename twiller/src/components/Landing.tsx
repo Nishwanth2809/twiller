@@ -8,11 +8,13 @@ import { useAuth } from "@/context/AuthContext";
 import Feed from "./Feed";
 import ForgotPassword from "./ForgotPassword";
 
+import { useRouter } from "next/navigation";
+
 export default function LandingPage({ onNavigate }: { onNavigate?: (page: string) => void }) {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup">("signup");
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const { user, logout ,googlesignin} = useAuth();
+  const router = useRouter();
 
   const openAuthModal = (mode: "login" | "signup") => {
     setAuthMode(mode);
@@ -20,9 +22,6 @@ export default function LandingPage({ onNavigate }: { onNavigate?: (page: string
   };
   if (user) {
     return <Feed onNavigate={onNavigate}/>;
-  }
-  if (showForgotPassword) {
-    return <ForgotPassword onBack={() => setShowForgotPassword(false)} />;
   }
   return (
     <div className="min-h-screen bg-black text-white flex">
@@ -133,7 +132,6 @@ export default function LandingPage({ onNavigate }: { onNavigate?: (page: string
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         initialMode={authMode}
-        onForgotPassword={() => setShowForgotPassword(true)}
       />
     </div>
   );

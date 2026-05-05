@@ -5,11 +5,30 @@ import dotenv from "dotenv";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
+import admin from "firebase-admin";
+import UAParser from "ua-parser-js";
 import User from "./models/user.js";
 import Tweet from "./models/tweet.js";
 import Subscription from "./models/subscription.js";
 
 dotenv.config();
+
+// ─── Firebase Admin Init ──────────────────────────────────────────────────────
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+
+if (!admin.apps.length) {
+  try {
+    const serviceAccount = require("./serviceAccountKey.json");
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+    console.log("✅ Firebase Admin initialized");
+  } catch (err) {
+    console.warn("⚠️ Firebase Admin init failed:", err.message);
+  }
+}
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -122,6 +141,118 @@ async function sendInvoiceEmail(email, displayName, plan, paymentId, amount) {
 
 app.get("/", (req, res) => {
   res.send("Twiller backend is running successfully");
+});
+
+// ─── Login Session & OTP Helper ──────────────────────────────────────────────
+app.post("/log-session", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).send({ error: "Email is required" });
+
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).send({ error: "User not found" });
+
+    const userAgentStr = req.headers["user-agent"] || "";
+    const parser = new UAParser(userAgentStr);
+    const browser = parser.getBrowser();
+    const os = parser.getOS();
+    const device = parser.getDevice();
+
+    const browserName = browser.name || "Unknown";
+    const osName = os.name || "Unknown";
+    const deviceType = device.type || "desktop"; 
+    const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "Unknown";
+
+    const sessionInfo = {
+      browser: browserName,
+      os: osName,
+      device: deviceType,
+      ip: ip,
+      timestamp: new Date(),
+      status: "pending"
+    };
+
+    if (deviceType === "mobile") {
+      const now = new Date();
+      const istTime = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+      const hours = istTime.getUTCHours();
+      if (hours < 10 || hours >= 13) {
+        sessionInfo.status = "blocked";
+        user.loginHistory.push(sessionInfo);
+        await user.save();
+        return res.status(403).send({ error: "Mobile login is only allowed between 10:00 AM and 1:00 PM IST." });
+      }
+    }
+
+    if (browserName.includes("Chrome") && !browserName.includes("Edge")) {
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      user.loginOtp = otp;
+      const expiresAt = new Date();
+      expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+      user.loginOtpExpiresAt = expiresAt;
+      
+      sessionInfo.status = "otp_pending";
+      user.loginHistory.push(sessionInfo);
+      await user.save();
+
+      const html = `
+        <h3>Login Verification</h3>
+        <p>Your OTP for login is: <strong style="font-size: 24px;">${otp}</strong></p>
+        <p>This OTP will expire in 10 minutes.</p>
+      `;
+      try {
+        await transporter.sendMail({
+          from: `"Twiller" <${process.env.EMAIL_USER}>`,
+          to: user.email,
+          subject: "🔐 Twiller - Login Verification OTP",
+          html,
+        });
+      } catch (err) {
+        console.error("OTP Email failed:", err.message);
+      }
+
+      return res.status(200).send({ requiresOtp: true });
+    } else {
+      sessionInfo.status = "success";
+      user.loginHistory.push(sessionInfo);
+      await user.save();
+      return res.status(200).send({ requiresOtp: false });
+    }
+  } catch (error) {
+    console.error("log-session error:", error);
+    return res.status(500).send({ error: error.message });
+  }
+});
+
+app.post("/verify-login-otp", async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).send({ error: "User not found" });
+
+    if (user.loginOtp !== otp) {
+      return res.status(400).send({ error: "Invalid OTP" });
+    }
+    if (new Date() > user.loginOtpExpiresAt) {
+      return res.status(400).send({ error: "OTP has expired" });
+    }
+
+    user.loginOtp = null;
+    user.loginOtpExpiresAt = null;
+    
+    for (let i = user.loginHistory.length - 1; i >= 0; i--) {
+      if (user.loginHistory[i].status === "otp_pending") {
+        user.loginHistory[i].status = "success";
+        break;
+      }
+    }
+    
+    await user.save();
+    return res.status(200).send({ success: true });
+  } catch (error) {
+    console.error("verify-login-otp error:", error);
+    return res.status(500).send({ error: error.message });
+  }
 });
 
 // Register
@@ -328,11 +459,15 @@ function isSameDayIST(date1, date2) {
 // Forgot Password
 app.post("/forgot-password", async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) return res.status(400).send({ error: "Email is required" });
+    const { email: emailOrPhone } = req.body;
+    if (!emailOrPhone) return res.status(400).send({ error: "Email or phone number is required" });
 
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).send({ error: "No account found with this email" });
+    const query = emailOrPhone.includes("@") 
+      ? { email: emailOrPhone } 
+      : { phoneNumber: emailOrPhone };
+
+    const user = await User.findOne(query);
+    if (!user) return res.status(404).send({ error: "No account found with this email or phone number" });
 
     // Check daily limit
     if (user.lastPasswordReset && isSameDayIST(user.lastPasswordReset, new Date())) {
@@ -344,6 +479,15 @@ app.post("/forgot-password", async (req, res) => {
 
     // Generate alpha-only password
     const newPassword = generateAlphaPassword(12);
+
+    // Update password in Firebase Auth
+    try {
+      const firebaseUser = await admin.auth().getUserByEmail(user.email);
+      await admin.auth().updateUser(firebaseUser.uid, { password: newPassword });
+    } catch (fbErr) {
+      console.error("Firebase password update failed:", fbErr.message);
+      return res.status(500).send({ error: "Failed to update password. Please try again." });
+    }
 
     // Update last reset timestamp
     user.lastPasswordReset = new Date();
@@ -395,7 +539,7 @@ app.post("/forgot-password", async (req, res) => {
 
     await transporter.sendMail({
       from: `"Twiller" <${process.env.EMAIL_USER}>`,
-      to: email,
+      to: user.email,
       subject: "🔐 Twiller - Your Password Has Been Reset",
       html,
     });

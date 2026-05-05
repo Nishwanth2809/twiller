@@ -157,8 +157,8 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
         ) : (
           <div className="flex space-x-4">
             <Avatar className="h-12 w-12">
-              <AvatarImage src={user.avatar} alt={user.displayName} />
-              <AvatarFallback>{user.displayName[0]}</AvatarFallback>
+              <AvatarImage src={user.avatar} alt={user.displayName || "User"} />
+              <AvatarFallback>{user.displayName ? user.displayName[0] : user.username ? user.username[0] : "U"}</AvatarFallback>
             </Avatar>
 
             <div className="flex-1">

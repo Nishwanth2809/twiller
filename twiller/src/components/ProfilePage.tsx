@@ -234,7 +234,7 @@ export default function ProfilePage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 bg-transparent border-b border-gray-800 rounded-none h-auto">
+        <TabsList className="grid w-full grid-cols-6 bg-transparent border-b border-gray-800 rounded-none h-auto overflow-x-auto">
           <TabsTrigger
             value="posts"
             className="data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:rounded-none text-gray-400 hover:bg-gray-900/50 py-4 font-semibold"
@@ -264,6 +264,12 @@ export default function ProfilePage() {
             className="data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:rounded-none text-gray-400 hover:bg-gray-900/50 py-4 font-semibold"
           >
             Media
+          </TabsTrigger>
+          <TabsTrigger
+            value="sessions"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:rounded-none text-gray-400 hover:bg-gray-900/50 py-4 font-semibold"
+          >
+            Sessions
           </TabsTrigger>
         </TabsList>
 
@@ -338,6 +344,35 @@ export default function ProfilePage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="sessions" className="mt-0">
+          <div className="divide-y divide-gray-800 px-4">
+            <div className="py-6">
+              <h3 className="text-xl font-bold text-white mb-4">Login History</h3>
+              {user.loginHistory && user.loginHistory.length > 0 ? (
+                <div className="space-y-4">
+                  {[...user.loginHistory].reverse().map((session: any, i: number) => (
+                    <div key={i} className="p-4 bg-gray-900 rounded-xl border border-gray-800 flex flex-col space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-white capitalize">{session.device} • {session.os}</span>
+                        <span className={`px-2 py-1 text-xs font-bold rounded-full ${session.status === 'success' ? 'bg-green-950 text-green-500' : session.status === 'blocked' ? 'bg-red-950 text-red-500' : 'bg-yellow-950 text-yellow-500'}`}>
+                          {session.status.toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-400 flex justify-between">
+                        <span>{session.browser}</span>
+                        <span>{new Date(session.timestamp).toLocaleString()}</span>
+                      </div>
+                      <div className="text-xs text-gray-500 font-mono">IP: {session.ip}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-400 text-center py-8">No login history available.</p>
+              )}
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
       <Editprofile
