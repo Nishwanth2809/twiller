@@ -101,17 +101,10 @@ export default function ForgotPassword({ onBack }: { onBack: () => void }) {
                   <Check className="h-5 w-5 flex-shrink-0 mt-0.5" />
                   <span>
                     {emailDeliveryFailed
-                      ? "New password generated. Email delivery failed, so use the password below."
+                      ? "New password generated, but email delivery failed. Please try again later."
                       : <>New password generated and sent to <strong>{emailOrPhone}</strong></>}
                   </span>
                 </div>
-
-                {generatedPassword && (
-                  <div className="rounded-2xl border border-blue-800 bg-blue-950/40 p-4 text-center">
-                    <p className="text-xs uppercase tracking-wide text-blue-300/70 mb-2">New Password</p>
-                    <p className="font-mono text-2xl font-bold text-blue-200 break-all">{generatedPassword}</p>
-                  </div>
-                )}
 
                 {/* Instructions */}
                 <div className="bg-yellow-950/40 border border-yellow-800 rounded-2xl p-4">
@@ -120,12 +113,7 @@ export default function ForgotPassword({ onBack }: { onBack: () => void }) {
                     <div className="text-sm text-yellow-300">
                       <p className="font-semibold mb-1">Important</p>
                       <ul className="space-y-1 text-yellow-400/80">
-                        <li>• Use this password to log in</li>
-                        <li>
-                          • {emailDeliveryFailed
-                            ? "Save this password now because the email could not be sent"
-                            : "A copy has been sent to your email"}
-                        </li>
+                        <li>• Use the password sent to your email to log in</li>
                         <li>• You can only reset once per day</li>
                         <li>• Check your spam folder if not received</li>
                       </ul>
