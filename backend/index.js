@@ -76,6 +76,9 @@ const transporter = nodemailer.createTransport({
   socketTimeout: 10000,
 });
 
+const emailProvider = process.env.RESEND_API_KEY ? "resend" : "gmail-smtp";
+console.log(`📧 Email provider: ${emailProvider}`);
+
 async function sendTwillerEmail({ to, subject, html }) {
   const from = process.env.EMAIL_FROM || `"Twiller" <${process.env.EMAIL_USER}>`;
 
