@@ -6,7 +6,7 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import admin from "firebase-admin";
-import UAParser from "ua-parser-js";
+import { UAParser } from "ua-parser-js";
 import User from "./models/user.js";
 import Tweet from "./models/tweet.js";
 import Subscription from "./models/subscription.js";
