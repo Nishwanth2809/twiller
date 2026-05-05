@@ -76,6 +76,35 @@ const transporter = nodemailer.createTransport({
   socketTimeout: 10000,
 });
 
+async function sendTwillerEmail({ to, subject, html }) {
+  const from = process.env.EMAIL_FROM || `"Twiller" <${process.env.EMAIL_USER}>`;
+
+  if (process.env.RESEND_API_KEY) {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from, to, subject, html }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Resend email failed (${response.status}): ${errorText}`);
+    }
+
+    return response.json();
+  }
+
+  return transporter.sendMail({
+    from,
+    to,
+    subject,
+    html,
+  });
+}
+
 // ─── Plan Config ──────────────────────────────────────────────────────────────
 const PLANS = {
   free:   { limit: 1,        price: 0,      label: "Free Plan" },
@@ -157,8 +186,7 @@ async function sendInvoiceEmail(email, displayName, plan, paymentId, amount) {
   </html>
   `;
 
-  await transporter.sendMail({
-    from: `"Twiller" <${process.env.EMAIL_USER}>`,
+  await sendTwillerEmail({
     to: email,
     subject: `🎉 Twiller ${planConfig.label} - Payment Confirmed`,
     html,
@@ -229,8 +257,7 @@ app.post("/log-session", async (req, res) => {
         <p>This OTP will expire in 10 minutes.</p>
       `;
       try {
-        await transporter.sendMail({
-          from: `"Twiller" <${process.env.EMAIL_USER}>`,
+        await sendTwillerEmail({
           to: user.email,
           subject: "🔐 Twiller - Login Verification OTP",
           html,
@@ -579,8 +606,7 @@ app.post("/forgot-password", async (req, res) => {
     `;
 
     try {
-      await transporter.sendMail({
-        from: `"Twiller" <${process.env.EMAIL_USER}>`,
+      await sendTwillerEmail({
         to: user.email,
         subject: "🔐 Twiller - Your Password Has Been Reset",
         html,
