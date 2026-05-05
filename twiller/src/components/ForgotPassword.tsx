@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { ArrowLeft, Mail, Phone, KeyRound, Check, AlertTriangle, Shield, RefreshCw } from "lucide-react";
+import axios from "axios";
 import axiosInstance from "@/lib/axiosInstance";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/context/firebase";
@@ -13,12 +14,16 @@ export default function ForgotPassword({ onBack }: { onBack: () => void }) {
   const [success, setSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [rateLimited, setRateLimited] = useState(false);
+  const [generatedPassword, setGeneratedPassword] = useState("");
+  const [emailDeliveryFailed, setEmailDeliveryFailed] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
     setRateLimited(false);
     setSuccess(false);
+    setGeneratedPassword("");
+    setEmailDeliveryFailed(false);
 
     if (!emailOrPhone.trim()) {
       setErrorMsg("Please enter your email address or phone number.");
@@ -34,20 +39,28 @@ export default function ForgotPassword({ onBack }: { onBack: () => void }) {
 
       if (res.data.success) {
         setSuccess(true);
+        setGeneratedPassword(res.data.generatedPassword || "");
+        setEmailDeliveryFailed(Boolean(res.data.emailDeliveryFailed));
 
         // Also trigger Firebase password reset link
-        try {
-          await sendPasswordResetEmail(auth, emailOrPhone.trim());
-        } catch {
-          // Firebase reset email is optional backup — ignore errors
+        if (mode === "email") {
+          try {
+            await sendPasswordResetEmail(auth, emailOrPhone.trim());
+          } catch {
+            // Firebase reset email is optional backup — ignore errors
+          }
         }
       }
-    } catch (error: any) {
-      if (error.response?.data?.rateLimited) {
+    } catch (error: unknown) {
+      const data = axios.isAxiosError(error)
+        ? error.response?.data as { rateLimited?: boolean; error?: string } | undefined
+        : undefined;
+
+      if (data?.rateLimited) {
         setRateLimited(true);
-        setErrorMsg(error.response.data.error);
+        setErrorMsg(data.error || "You can use this option only one time per day.");
       } else {
-        setErrorMsg(error.response?.data?.error || "Something went wrong. Please try again.");
+        setErrorMsg(data?.error || "Something went wrong. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -86,10 +99,19 @@ export default function ForgotPassword({ onBack }: { onBack: () => void }) {
               <div className="space-y-5">
                 <div className="flex items-start gap-3 p-4 rounded-2xl bg-green-950/60 border border-green-700 text-green-300 text-sm">
                   <Check className="h-5 w-5 flex-shrink-0 mt-0.5" />
-                  <span>New password generated and sent to <strong>{emailOrPhone}</strong></span>
+                  <span>
+                    {emailDeliveryFailed
+                      ? "New password generated. Email delivery failed, so use the password below."
+                      : <>New password generated and sent to <strong>{emailOrPhone}</strong></>}
+                  </span>
                 </div>
 
-
+                {generatedPassword && (
+                  <div className="rounded-2xl border border-blue-800 bg-blue-950/40 p-4 text-center">
+                    <p className="text-xs uppercase tracking-wide text-blue-300/70 mb-2">New Password</p>
+                    <p className="font-mono text-2xl font-bold text-blue-200 break-all">{generatedPassword}</p>
+                  </div>
+                )}
 
                 {/* Instructions */}
                 <div className="bg-yellow-950/40 border border-yellow-800 rounded-2xl p-4">
@@ -99,7 +121,11 @@ export default function ForgotPassword({ onBack }: { onBack: () => void }) {
                       <p className="font-semibold mb-1">Important</p>
                       <ul className="space-y-1 text-yellow-400/80">
                         <li>• Use this password to log in</li>
-                        <li>• A copy has been sent to your email</li>
+                        <li>
+                          • {emailDeliveryFailed
+                            ? "Save this password now because the email could not be sent"
+                            : "A copy has been sent to your email"}
+                        </li>
                         <li>• You can only reset once per day</li>
                         <li>• Check your spam folder if not received</li>
                       </ul>

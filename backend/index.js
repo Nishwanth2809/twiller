@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import dotenv from "dotenv";
 import Razorpay from "razorpay";
 import crypto from "crypto";
+import dns from "dns";
 import nodemailer from "nodemailer";
 import admin from "firebase-admin";
 import { UAParser } from "ua-parser-js";
@@ -12,6 +13,7 @@ import Tweet from "./models/tweet.js";
 import Subscription from "./models/subscription.js";
 
 dotenv.config();
+dns.setDefaultResultOrder("ipv4first");
 
 // ─── Firebase Admin Init ──────────────────────────────────────────────────────
 import { createRequire } from "module";
@@ -22,6 +24,16 @@ if (!admin.apps.length) {
     let serviceAccount;
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
       serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    } else if (
+      process.env.FIREBASE_PROJECT_ID &&
+      process.env.FIREBASE_CLIENT_EMAIL &&
+      process.env.FIREBASE_PRIVATE_KEY
+    ) {
+      serviceAccount = {
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      };
     } else {
       serviceAccount = require("./serviceAccountKey.json");
     }
@@ -45,10 +57,16 @@ const razorpay = new Razorpay({
 });
 
 // ─── Nodemailer Transporter ───────────────────────────────────────────────────
+function lookupIpv4Only(hostname, options, callback) {
+  dns.lookup(hostname, { ...options, family: 4, all: false }, callback);
+}
+
 const transporter = nodemailer.createTransport({
   host: "smtp.gmail.com",
   port: 587,
   secure: false, // true for 465, false for other ports
+  family: 4,
+  lookup: lookupIpv4Only,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
@@ -560,18 +578,28 @@ app.post("/forgot-password", async (req, res) => {
     </html>
     `;
 
-    await transporter.sendMail({
-      from: `"Twiller" <${process.env.EMAIL_USER}>`,
-      to: user.email,
-      subject: "🔐 Twiller - Your Password Has Been Reset",
-      html,
-    });
+    try {
+      await transporter.sendMail({
+        from: `"Twiller" <${process.env.EMAIL_USER}>`,
+        to: user.email,
+        subject: "🔐 Twiller - Your Password Has Been Reset",
+        html,
+      });
 
-    return res.status(200).send({
-      success: true,
-      message: "A new password has been sent to your email address.",
-      generatedPassword: newPassword,
-    });
+      return res.status(200).send({
+        success: true,
+        message: "A new password has been sent to your email address.",
+        generatedPassword: newPassword,
+      });
+    } catch (emailErr) {
+      console.error("Password reset email failed:", emailErr.message);
+      return res.status(200).send({
+        success: true,
+        emailDeliveryFailed: true,
+        message: "Password reset completed, but the email could not be delivered. Use the password shown on this page.",
+        generatedPassword: newPassword,
+      });
+    }
   } catch (error) {
     console.error("forgot-password error:", error);
     return res.status(500).send({ error: error.message });
