@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import axiosInstance from "@/lib/axiosInstance";
 import { Crown, Zap, Star, Gift, Clock, CheckCircle, AlertTriangle } from "lucide-react";
@@ -15,9 +15,8 @@ const PLANS = [
     icon: Gift,
     color: "from-gray-600 to-gray-700",
     border: "border-gray-700",
-    badge: "bg-gray-700 text-gray-200",
-    limit: "1 tweet / month",
-    features: ["Basic access", "1 tweet per month", "Community support"],
+    limit: "1 post or reply per calendar month",
+    features: ["1 post or reply per calendar month"],
     cta: "Current Free Plan",
     disabled: true,
   },
@@ -25,13 +24,12 @@ const PLANS = [
     id: "bronze",
     name: "Bronze",
     price: 100,
-    priceLabel: "₹100/mo",
+    priceLabel: "₹100 / 30 days",
     icon: Star,
     color: "from-amber-700 to-amber-600",
     border: "border-amber-700",
-    badge: "bg-amber-700 text-amber-100",
-    limit: "3 tweets / month",
-    features: ["3 tweets per month", "Priority feed ranking", "Email support"],
+    limit: "3 posts or replies per 30-day period",
+    features: ["3 posts or replies per 30-day period"],
     cta: "Subscribe to Bronze",
     disabled: false,
   },
@@ -39,28 +37,25 @@ const PLANS = [
     id: "silver",
     name: "Silver",
     price: 300,
-    priceLabel: "₹300/mo",
+    priceLabel: "₹300 / 30 days",
     icon: Zap,
     color: "from-slate-400 to-slate-500",
     border: "border-slate-400",
-    badge: "bg-slate-500 text-white",
-    limit: "5 tweets / month",
-    features: ["5 tweets per month", "Verified badge", "Priority support"],
+    limit: "5 posts or replies per 30-day period",
+    features: ["5 posts or replies per 30-day period"],
     cta: "Subscribe to Silver",
     disabled: false,
-    popular: true,
   },
   {
     id: "gold",
     name: "Gold",
     price: 1000,
-    priceLabel: "₹1000/mo",
+    priceLabel: "₹1000 / 30 days",
     icon: Crown,
     color: "from-yellow-500 to-yellow-400",
     border: "border-yellow-500",
-    badge: "bg-yellow-500 text-yellow-900",
-    limit: "Unlimited tweets",
-    features: ["Unlimited tweets", "Gold verified badge", "Dedicated support", "Analytics dashboard"],
+    limit: "Unlimited posts and replies for 30 days",
+    features: ["Unlimited posts and replies for 30 days"],
     cta: "Subscribe to Gold",
     disabled: false,
   },
@@ -83,31 +78,32 @@ function getISTInfo() {
 export default function SubscriptionPage() {
   const { user, refreshUser } = useAuth();
   const [istInfo, setIstInfo] = useState(getISTInfo());
-  const [userPlan, setUserPlan] = useState<any>(null);
+  const checkoutActive = useRef(false);
+  const handledPayments = useRef(new Set<string>());
+  const [sdkReady, setSdkReady] = useState(typeof window !== "undefined" && Boolean((window as any).Razorpay));
+  const [pendingVerification, setPendingVerification] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    if ((window as any).Razorpay) { setSdkReady(true); return; }
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => setSdkReady(Boolean((window as any).Razorpay));
+    script.onerror = () => setErrorMsg("Checkout could not load. Refresh the page and try again.");
+    document.head.appendChild(script);
+    return () => { script.onload = null; script.onerror = null; };
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => setIstInfo(getISTInfo()), 10000);
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (user?.email) fetchUserPlan();
-  }, [user]);
-
-  const fetchUserPlan = async () => {
-    try {
-      const res = await axiosInstance.get(`/user-plan/${user!.email}`);
-      setUserPlan(res.data);
-    } catch (err) {
-      console.error("Failed to fetch plan:", err);
-    }
-  };
-
   const handleSubscribe = async (planId: string) => {
-    if (!user) return;
+    if (!user || checkoutActive.current) return;
     setErrorMsg("");
     setSuccessMsg("");
 
@@ -115,13 +111,14 @@ export default function SubscriptionPage() {
       setErrorMsg("Payments are only accepted between 10:00 AM and 11:00 AM IST.");
       return;
     }
+    if (!sdkReady || !(window as any).Razorpay) { setErrorMsg("Checkout is still loading. Try again in a moment."); return; }
+    checkoutActive.current = true;
     setLoading(true);
 
     try {
       // 1. Create Razorpay order
       const orderRes = await axiosInstance.post("/create-order", {
         plan: planId,
-        email: user.email,
       });
       const { orderId, amount, currency } = orderRes.data;
 
@@ -139,61 +136,79 @@ export default function SubscriptionPage() {
         },
         theme: { color: "#1d9bf0" },
         handler: async (response: any) => {
+          const paymentKey = `${response.razorpay_order_id}:${response.razorpay_payment_id}`;
+          if (handledPayments.current.has(paymentKey)) return;
+          handledPayments.current.add(paymentKey);
           try {
             const verifyRes = await axiosInstance.post("/verify-payment", {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
-              plan: planId,
-              email: user.email,
             });
 
             if (verifyRes.data.success) {
               setSuccessMsg(
-                `🎉 Successfully upgraded to ${planId.charAt(0).toUpperCase() + planId.slice(1)} Plan! Invoice sent to ${user.email}`
+                verifyRes.data.alreadyProcessed ? "This purchase has already been applied." : `Successfully upgraded to ${verifyRes.data.plan} Plan!`
               );
               await refreshUser();
-              await fetchUserPlan();
-            }
+              setPendingVerification(null);
+            } else throw new Error("Payment verification did not complete");
           } catch (err: any) {
-            setErrorMsg(err.response?.data?.error || "Payment verification failed.");
+            setPendingVerification(response);
+            setErrorMsg("Payment received, but verification is pending. Retry verification before starting another checkout.");
+          } finally {
+            checkoutActive.current = false;
+            setLoading(false);
           }
         },
         modal: {
-          ondismiss: () => setLoading(false),
+          ondismiss: () => { checkoutActive.current = false; setLoading(false); },
         },
       };
 
       const rzp = new (window as any).Razorpay(options);
       rzp.on("payment.failed", (resp: any) => {
-        setErrorMsg(`Payment failed: ${resp.error.description}`);
+        setErrorMsg("Payment failed. No plan change was made. You can try again.");
+        checkoutActive.current = false;
         setLoading(false);
       });
       rzp.open();
     } catch (err: any) {
       setErrorMsg(err.response?.data?.error || "Failed to initiate payment.");
-    } finally {
+      checkoutActive.current = false;
       setLoading(false);
     }
   };
 
-  const currentPlan = userPlan?.plan || user?.plan || "free";
-  const tweetCount = userPlan?.tweetCount ?? 0;
-  const planLimit = userPlan?.planLimit === -1 ? Infinity : (userPlan?.planLimit ?? 1);
+  const retryVerification = async () => {
+    if (!pendingVerification || checkoutActive.current) return;
+    checkoutActive.current = true; setLoading(true); setErrorMsg("");
+    try {
+      const result = await axiosInstance.post("/verify-payment", {
+        razorpay_order_id: pendingVerification.razorpay_order_id,
+        razorpay_payment_id: pendingVerification.razorpay_payment_id,
+        razorpay_signature: pendingVerification.razorpay_signature,
+      });
+      if (result.data.success) { setSuccessMsg(`Successfully upgraded to ${result.data.plan} Plan!`); setPendingVerification(null); await refreshUser(); }
+    } catch { setErrorMsg("Verification is still pending. Retry shortly or contact support with your order reference."); }
+    finally { checkoutActive.current = false; setLoading(false); }
+  };
+
+  const currentPlan = user?.plan || "free";
+  const tweetCount = user?.tweetCount ?? 0;
+  const planLimit = user?.planLimit === -1 ? Infinity : (user?.planLimit ?? 1);
 
   return (
     <>
-      {/* Razorpay SDK Script */}
-      <script src="https://checkout.razorpay.com/v1/checkout.js" async />
-
       <div className="min-h-screen pb-16">
         {/* Header */}
         <div className="sticky top-0 bg-black/90 backdrop-blur-md border-b border-gray-800 z-10 px-4 py-4">
           <h1 className="text-xl font-bold text-white">Premium Plans</h1>
-          <p className="text-sm text-gray-400">Unlock more tweets with a subscription</p>
+          <p className="text-sm text-gray-400">One-time plan purchases change your posting allowance for the plan period.</p>
         </div>
 
         <div className="max-w-4xl mx-auto px-4 py-8">
+          {pendingVerification && <button onClick={retryVerification} disabled={loading} className="mb-4 rounded-lg bg-amber-900/50 px-4 py-3 text-amber-200 disabled:opacity-50">{loading ? "Verifying…" : "Retry payment verification"}</button>}
           {/* Time Window Banner */}
           <div
             className={`mb-8 flex items-center gap-3 px-5 py-4 rounded-2xl border text-sm font-medium transition-all ${
@@ -239,7 +254,7 @@ export default function SubscriptionPage() {
                   {currentPlan}
                 </span>
               </div>
-              <div className="text-gray-400 text-sm mb-2">Tweets used this month</div>
+              <div className="text-gray-400 text-sm mb-2">Posts and replies used</div>
               <div className="flex items-center gap-3">
                 <div className="flex-1 bg-gray-800 rounded-full h-2.5 overflow-hidden">
                   <div
@@ -263,10 +278,10 @@ export default function SubscriptionPage() {
                   {tweetCount} / {planLimit === Infinity ? "∞" : planLimit}
                 </span>
               </div>
-              {userPlan?.planExpiresAt && (
+              {user?.planExpiresAt && (
                 <p className="text-gray-500 text-xs mt-2">
-                  Plan renews:{" "}
-                  {new Date(userPlan.planExpiresAt).toLocaleDateString("en-IN", {
+                  Plan expires:{" "}
+                  {new Date(user.planExpiresAt).toLocaleDateString("en-IN", {
                     day: "numeric",
                     month: "long",
                     year: "numeric",
@@ -306,11 +321,6 @@ export default function SubscriptionPage() {
                     isCurrentPlan ? "ring-2 ring-blue-500" : ""
                   } bg-gray-950`}
                 >
-                  {plan.popular && (
-                    <div className="absolute top-0 right-0 bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
-                      POPULAR
-                    </div>
-                  )}
                   {isCurrentPlan && (
                     <div className="absolute top-0 left-0 bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-br-lg">
                       ACTIVE
@@ -379,8 +389,7 @@ export default function SubscriptionPage() {
 
           {/* Footer note */}
           <p className="text-center text-gray-600 text-xs mt-8">
-            Payments are accepted only between 10:00 AM – 11:00 AM IST daily.
-            An invoice will be emailed to you immediately after payment.
+            Payments are accepted only between 10:00 AM – 11:00 AM IST daily. Paid plans do not renew automatically and remain active for 30 days after verified payment. An invoice email is attempted after verification, but delivery can fail.
           </p>
         </div>
       </div>

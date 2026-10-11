@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="back" x1="19" y1="16" x2="68" y2="90" gradientUnits="userSpaceOnUse"><stop stop-color="#5146DB"/><stop offset="1" stop-color="#30299C"/></linearGradient>
+    <linearGradient id="stem" x1="58" y1="52" x2="84" y2="122" gradientUnits="userSpaceOnUse"><stop stop-color="#4431B9"/><stop offset=".6" stop-color="#945AEC"/><stop offset="1" stop-color="#22D3EE"/></linearGradient>
+    <linearGradient id="fold" x1="50" y1="70" x2="116" y2="25" gradientUnits="userSpaceOnUse"><stop stop-color="#5343CF"/><stop offset=".65" stop-color="#9A5EF0"/><stop offset="1" stop-color="#22D3EE"/></linearGradient>
+  </defs>
+  <path d="M64 24C50 13 27 9 17 17C5 26 6 47 19 52C27 55 39 49 45 58L45 93C45 62 52 37 64 24Z" fill="url(#back)"/>
+  <path d="M46 62C45 79 44 96 47 106C50 119 68 124 79 115C87 109 87 98 87 85L87 54Z" fill="url(#stem)"/>
+  <path d="M46 96C47 68 57 61 77 55C89 51 107 56 116 44C124 32 120 14 105 12C87 9 64 20 55 35C46 49 45 71 46 96Z" fill="url(#fold)"/>
+</svg>

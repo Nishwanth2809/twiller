@@ -23,12 +23,27 @@ function Avatar({
 
 function AvatarImage({
   className,
+  src,
+  crossOrigin,
   ...props
 }: React.ComponentProps<typeof AvatarPrimitive.Image>) {
+  // Media is served from the configured backend origin. Request it in CORS mode
+  // so browsers enforcing cross-origin isolation can load it through Radix's
+  // image preloader. Other avatar sources keep their existing request mode.
+  const isBackendMedia = typeof src === "string" && (() => {
+    try {
+      return new URL(src, "http://localhost").pathname.startsWith("/media/");
+    } catch {
+      return false;
+    }
+  })();
+
   return (
     <AvatarPrimitive.Image
       data-slot="avatar-image"
       className={cn("aspect-square size-full", className)}
+      crossOrigin={crossOrigin ?? (isBackendMedia ? "anonymous" : undefined)}
+      src={src}
       {...props}
     />
   )

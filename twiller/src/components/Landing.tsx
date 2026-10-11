@@ -13,7 +13,8 @@ import { useRouter } from "next/navigation";
 export default function LandingPage({ onNavigate }: { onNavigate?: (page: string) => void }) {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup">("signup");
-  const { user, logout ,googlesignin} = useAuth();
+  const [googleError, setGoogleError] = useState("");
+  const { user, googlesignin, otpPendingEmail, status, authError, retrySession, isDemoMode, startDemoSession } = useAuth();
   const router = useRouter();
 
   const openAuthModal = (mode: "login" | "signup") => {
@@ -23,11 +24,26 @@ export default function LandingPage({ onNavigate }: { onNavigate?: (page: string
   if (user) {
     return <Feed onNavigate={onNavigate}/>;
   }
+  if (isDemoMode) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center px-6">
+        <div className="w-full max-w-md text-center space-y-6">
+          <TwitterLogo size="xl" className="text-white mx-auto" />
+          <h1 className="text-4xl font-bold">Discover Twiller locally</h1>
+          <p className="text-gray-300">This uses a sample account and browser-only data. Google sign-in, email, uploads, and payments are not connected.</p>
+          <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-full h-12" onClick={() => void startDemoSession()}>
+            Enter local demo
+          </Button>
+          <p className="text-xs text-gray-500">Demo changes stay in this browser and are separate from real accounts.</p>
+        </div>
+      </div>
+    );
+  }
   return (
-    <div className="min-h-screen bg-black text-white flex">
+    <div className="twiller-landing min-h-screen bg-black text-white flex">
       {/* Left side - Logo */}
       <div className="hidden lg:flex lg:flex-1 items-center justify-center">
-        <TwitterLogo className="text-white h-80 w-80" />
+        <div className="twiller-landing-brand"><TwitterLogo size="xl" wordmark /><p>Conversations connect us.</p></div>
       </div>
       {/* Right side - Content */}
       <div className="flex-1 lg:flex-1 flex flex-col justify-center px-8 lg:px-16 max-w-lg lg:max-w-2xl">
@@ -35,19 +51,28 @@ export default function LandingPage({ onNavigate }: { onNavigate?: (page: string
           <TwitterLogo size="xl" className="text-white mx-auto" />
         </div>
 
-        <div className="space-y-12">
+        <div className="space-y-8">
           <div>
-            <h1 className="text-5xl lg:text-6xl font-bold mb-8 leading-tight">
-              Happening now
+            <h1 className="text-4xl lg:text-5xl font-bold mb-8 leading-tight">
+              Your next conversation starts here.
             </h1>
-            <h2 className="text-2xl lg:text-3xl font-bold mb-8">Join today.</h2>
+            <h2 className="text-2xl lg:text-3xl font-bold mb-8">Make room for connection.</h2>
           </div>
 
           <div className="space-y-4 max-w-xs">
+            {authError && <div role="alert" className="text-red-400 text-sm">{authError}<Button type="button" variant="link" onClick={() => void retrySession()}>Retry</Button></div>}
             <Button
               variant="outline"
               className="w-full py-3 rounded-full border-gray-600 bg-black  text-white font-semibold text-base h-12"
-              onClick={() => googlesignin()}
+              onClick={async () => {
+                setGoogleError("");
+                try {
+                  const complete = await googlesignin();
+                  if (!complete) setShowAuthModal(true);
+                } catch (err: any) {
+                  setGoogleError(err?.message || "Google sign-in failed");
+                }
+              }}
             >
               <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                 <path
@@ -72,8 +97,9 @@ export default function LandingPage({ onNavigate }: { onNavigate?: (page: string
 
             <Button
               variant="outline"
-              className="w-full py-3 rounded-full border-gray-600  bg-black text-white font-semibold text-base h-12"
-             onClick={() => googlesignin()}
+              className="w-full py-3 rounded-full border-gray-600  bg-black text-gray-500 font-semibold text-base h-12 cursor-not-allowed opacity-50"
+              disabled
+              title="Apple Sign In is not available"
             >
               <svg
                 className="w-5 h-5 mr-2"
@@ -82,10 +108,13 @@ export default function LandingPage({ onNavigate }: { onNavigate?: (page: string
               >
                 <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
               </svg>
-              Sign up with Apple
+              Sign up with Apple (unavailable)
             </Button>
 
             <div className="relative">
+              {googleError && (
+                <p className="text-red-400 text-sm text-center mb-2">{googleError}</p>
+              )}
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t border-gray-600" />
               </div>
@@ -101,18 +130,11 @@ export default function LandingPage({ onNavigate }: { onNavigate?: (page: string
             </Button>
             <p className="text-xs text-gray-400 leading-relaxed">
               By signing up, you agree to the{" "}
-              <a href="#" className="text-blue-400 hover:underline">
-                Terms of Service
-              </a>{" "}
+              <a href="/terms" className="text-blue-400 hover:underline">Terms of Service</a>{" "}
               and{" "}
-              <a href="#" className="text-blue-400 hover:underline">
-                Privacy Policy
-              </a>
+              <a href="/privacy" className="text-blue-400 hover:underline">Privacy Policy</a>
               , including{" "}
-              <a href="#" className="text-blue-400 hover:underline">
-                Cookie Use
-              </a>
-              .
+              <a href="/cookies" className="text-blue-400 hover:underline">Cookie Use</a>.
             </p>
           </div>
           <div className="space-y-5">
@@ -129,9 +151,9 @@ export default function LandingPage({ onNavigate }: { onNavigate?: (page: string
       </div>
 
       <AuthModal
-        isOpen={showAuthModal}
+        isOpen={showAuthModal || !!otpPendingEmail || status === "registration-required"}
         onClose={() => setShowAuthModal(false)}
-        initialMode={authMode}
+        initialMode={status === "registration-required" ? "signup" : authMode}
       />
     </div>
   );

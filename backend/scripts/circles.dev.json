@@ -1,0 +1,8 @@
+[
+  { "slug": "ai-builders", "name": "AI Builders", "description": "Build and discuss practical AI projects.", "topics": ["ai-ml", "ai-jobs"] },
+  { "slug": "frontend-guild", "name": "Frontend Guild", "description": "Share frontend work and interface ideas.", "topics": ["react"] },
+  { "slug": "placement-prep-circle", "name": "Placement Prep", "description": "Prepare for interviews and placements together.", "topics": ["placement-prep"] },
+  { "slug": "hyderabad-tech-circle", "name": "Hyderabad Tech", "description": "Meet people building technology in Hyderabad.", "topics": ["hyderabad-tech"] },
+  { "slug": "startup-founders", "name": "Startup Founders", "description": "Discuss the experience of building startups.", "topics": ["startups"] },
+  { "slug": "gaming-hub", "name": "Gaming Hub", "description": "Talk about games with other players.", "topics": ["gaming"] }
+]

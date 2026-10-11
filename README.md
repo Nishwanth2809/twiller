@@ -14,7 +14,7 @@
 
 <br/>
 
-*A full-stack social media platform featuring real-time posting, media uploads, subscription plans with Razorpay payments, OTP-secured workflows, and Firebase authentication — all wrapped in a sleek, responsive UI.*
+*A full-stack social platform with posts, replies, likes, follows, bookmarks, polling-based messaging, Firebase authentication, and optional Razorpay subscriptions.*
 
 <br/>
 
@@ -50,17 +50,17 @@
 - Firebase-powered authentication
 - **Chrome login OTP verification** via email
 - Mobile login time restriction (10 AM – 1 PM IST)
-- Forgot password with auto-generated credentials
+- Password recovery through Firebase-hosted reset links (email delivery must be configured)
 
 </td>
 <td width="50%">
 
 ### 📝 Posting & Feed
 - Tweet composer with **200-character limit**
-- **Image upload** support via ImgBB
+- Image and audio upload through the backend media endpoint (storage is deployment-configured)
 - **Audio tweets** with OTP verification (100 MB / 5 min max)
 - Audio posting window: 2 PM – 7 PM IST
-- Real-time feed sorted by latest posts
+- Feed sorted by latest posts; messages refresh through polling
 
 </td>
 </tr>
@@ -79,12 +79,12 @@
 
 ### 💳 Subscriptions & Payments
 - **Tiered subscription plans:**
-  - 🆓 Free — 1 tweet/month
-  - 🥉 Bronze — 3 tweets/month
-  - 🥈 Silver — 5 tweets/month
-  - 🥇 Gold — Unlimited tweets
+  - 🆓 Free — 1 post or reply per UTC calendar month
+  - 🥉 Bronze — 3 posts or replies per 30-day purchase period
+  - 🥈 Silver — 5 posts or replies per 30-day purchase period
+  - 🥇 Gold — unlimited posts and replies per 30-day purchase period
 - **Razorpay** payment integration
-- Automated **invoice emails** on payment
+- Invoice email is attempted after verified payment; delivery can fail
 - Payment window: 10 AM – 11 AM IST
 
 </td>
@@ -111,7 +111,7 @@
 <tr><td><b>Database</b></td><td>MongoDB + Mongoose</td><td>Document-based data persistence</td></tr>
 <tr><td><b>Authentication</b></td><td>Firebase (Client + Admin SDK)</td><td>User auth & account management</td></tr>
 <tr><td><b>Payments</b></td><td>Razorpay</td><td>Subscription payment processing</td></tr>
-<tr><td><b>Email</b></td><td>Nodemailer</td><td>OTP, invoices, password recovery</td></tr>
+<tr><td><b>Email</b></td><td>Apps Script with SMTP fallback</td><td>Verification and recovery messages; invoice email is attempted</td></tr>
 <tr><td><b>Device Detection</b></td><td>UA-Parser-JS</td><td>Browser/device session checks</td></tr>
 </table>
 
@@ -250,7 +250,7 @@ npm run dev
 
 ### 5️⃣ Open in Browser
 
-Navigate to **[http://localhost:3000](http://localhost:3000)** 🎉
+Navigate to **[http://localhost:3001](http://localhost:3001)** 🎉
 
 ---
 
@@ -260,21 +260,27 @@ Navigate to **[http://localhost:3000](http://localhost:3000)** 🎉
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `MONOGDB_URL` | MongoDB connection string | `mongodb+srv://user:pass@cluster.mongodb.net/twiller` |
+| `MONGODB_URI` | MongoDB connection string. Use loopback MongoDB locally; remote development connections require `DEV_ATLAS=true` and non-production data. | `mongodb://127.0.0.1:27017/twiller` |
+| `MONOGDB_URL` | Legacy alias for `MONGODB_URI` | — |
+| `DEV_ATLAS` | Explicit acknowledgement for remote MongoDB during development; only use a non-production database | `true` only when needed |
 | `PORT` | Server port | `5000` |
-| `RAZORPAY_KEY_ID` | Razorpay API key ID | `rzp_test_xxxxx` |
-| `RAZORPAY_KEY_SECRET` | Razorpay API key secret | `secret_xxxxx` |
-| `EMAIL_USER` | Sender email address | `your-email@gmail.com` |
-| `EMAIL_PASS` | Email app password | `xxxx xxxx xxxx xxxx` |
-| `FIREBASE_PROJECT_ID` | Firebase project identifier | `twiller-xxxxx` |
-| `FIREBASE_CLIENT_EMAIL` | Firebase service account email | `firebase-adminsdk-xxx@twiller.iam.gserviceaccount.com` |
-| `FIREBASE_PRIVATE_KEY` | Firebase service account private key | `"-----BEGIN PRIVATE KEY-----\n..."` |
+| `FRONTEND_ORIGINS` | Comma-separated allowed frontend origins; required in production | `https://your-frontend.example` |
+| `PREVIEW_ORIGINS` | Optional comma-separated preview origins | — |
+| `MEDIA_DIR` | Directory used for media files | Local path |
+| `MEDIA_PUBLIC_BASE_URL` | Public base URL used for uploaded media links | Deployment URL |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Configure both to enable payments; use test credentials for local acceptance | Provider-issued values |
+| `EMAIL_USER` / `EMAIL_PASS` | SMTP sender credentials; configure together when SMTP is used | Provider-issued values |
+| `APPS_SCRIPT_URL` | Optional HTTPS Apps Script mail transport | Provider-issued URL |
+| `FIREBASE_PROJECT_ID` | Firebase project identifier | Project ID |
+| `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` | Firebase Admin credentials outside emulator mode | Service-account values |
+| `TWILLER_LOCAL_AUTH_EMULATOR` | Development/test-only Firebase Auth Emulator switch | `true` |
+| `FIREBASE_AUTH_EMULATOR_HOST` | Loopback Firebase Auth Emulator host and port | `127.0.0.1:9099` |
 
 ### Frontend — `twiller/.env.local`
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `NEXT_PUBLIC_API_BASE_URL` | Backend API URL | `http://localhost:5000` |
+| `NEXT_PUBLIC_BACKEND_URL` | Backend API URL; HTTPS is required in production | `http://127.0.0.1:5000` |
 | `NEXT_PUBLIC_RAZORPAY_KEY_ID` | Razorpay public key | `rzp_test_xxxxx` |
 
 > [!IMPORTANT]
@@ -303,7 +309,7 @@ Navigate to **[http://localhost:3000](http://localhost:3000)** 🎉
 | `POST` | `/post` | Create a new tweet |
 | `GET` | `/post` | Fetch all tweets (latest first) |
 | `POST` | `/like/:tweetid` | Like / unlike a tweet |
-| `POST` | `/retweet/:tweetid` | Retweet a tweet |
+| `POST` | `/retweet/:tweetid` | Toggle the repost counter and current-user repost state; this does not distribute the post into followers&apos; feeds |
 | `POST` | `/generate-audio-otp` | Send OTP for audio tweet upload |
 
 ### Subscriptions & Payments
@@ -317,6 +323,8 @@ Navigate to **[http://localhost:3000](http://localhost:3000)** 🎉
 ---
 
 ## 🚀 Deployment
+
+For the Phase 6.5 Batch 3 staging checkpoint, use [STAGING_DEPLOYMENT.md](STAGING_DEPLOYMENT.md) and the separate `render.staging.yaml`. The instructions below describe the existing live deployment and must not be used to create staging resources.
 
 ### Frontend → Vercel
 
@@ -345,20 +353,9 @@ The backend uses the included [`render.yaml`](render.yaml) for deployment on **[
 
 ## 🧪 Testing
 
-The application was validated through **manual testing** of the following flows:
+Run backend automated tests with `cd backend && npm test`. Run frontend lint and production compilation with `cd twiller && npm run lint` and `npm run build`. Browser acceptance, Firebase email delivery, and Razorpay checkout require their isolated test services and provider test configuration; these commands do not establish provider acceptance.
 
-- [x] Account signup & login (email + Google)
-- [x] Chrome OTP login verification
-- [x] User profile update (name, bio, avatar, location, website)
-- [x] Text tweet creation & feed rendering
-- [x] Image upload via ImgBB
-- [x] Audio tweet upload with OTP
-- [x] Like & retweet interactions
-- [x] Subscription plan display & upgrade
-- [x] Razorpay payment window validation
-- [x] Forgot password flow
-- [x] Tweet limit enforcement per plan
-- [x] OTP flows for language change
+The account `language` field can store a validated preference through existing API routes, but the application interface is English-only. Repost actions currently update counters and do not distribute posts into followers&apos; feeds.
 
 ---
 

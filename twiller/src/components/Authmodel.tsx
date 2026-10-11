@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 import { X, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
 
@@ -9,6 +9,7 @@ import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
+import AccessibleDialog from './ui/AccessibleDialog';
 import { Separator } from './ui/separator';
 import { useAuth } from '@/context/AuthContext';
 import TwitterLogo from './Twitterlogo';
@@ -21,9 +22,18 @@ interface AuthModalProps {
 }
 
 export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalProps) {
-  const { login, signup, isLoading, otpPendingEmail, verifyOtp, cancelOtp } = useAuth();
+  const { login, signup, googlesignin, isLoading, otpPendingEmail, verifyOtp, cancelOtp, authError, retrySession } = useAuth();
   const router = useRouter();
   const [mode, setMode] = useState<'login' | 'signup'>(initialMode);
+  const [googleError, setGoogleError] = useState('');
+
+  // Sync mode whenever the modal opens with a new initialMode
+  useEffect(() => {
+    if (isOpen) {
+      setMode(initialMode);
+      setGoogleError('');
+    }
+  }, [isOpen, initialMode]);
   const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState('');
   const [formData, setFormData] = useState({
@@ -33,8 +43,19 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
     displayName: ''
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const formRef = useRef<HTMLFormElement>(null);
+  const closeModal = () => { void cancelOtp().catch(() => {}); onClose(); };
 
-  if (!isOpen) return null;
+  if (!isOpen && !otpPendingEmail) return null;
+
+  const handleGoogleSignIn = async () => {
+    setGoogleError('');
+    try {
+      if (await googlesignin()) onClose();
+    } catch (err: unknown) {
+      setGoogleError(err instanceof Error ? err.message : 'Google sign-in failed');
+    }
+  };
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -66,6 +87,9 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
     }
 
     setErrors(newErrors);
+    if (Object.keys(newErrors).length) {
+      window.requestAnimationFrame(() => formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus());
+    }
     return Object.keys(newErrors).length === 0;
   };
 
@@ -74,16 +98,14 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
     if (!validateForm() || isLoading) return;
 
     try {
-      if (mode === 'login') {
-        await login(formData.email, formData.password);
-      } else {
-        await signup(formData.email, formData.password, formData.username, formData.displayName);
-      }
-      onClose();
+      const completed = mode === 'login'
+        ? await login(formData.email, formData.password)
+        : await signup(formData.email, formData.password, formData.username, formData.displayName);
+      if (completed) onClose();
       setFormData({ email: '', password: '', username: '', displayName: '' });
       setErrors({});
-    } catch (error) {
-      setErrors({ general: 'Authentication failed. Please try again.' });
+    } catch (error: unknown) {
+      setErrors({ general: error instanceof Error ? error.message : 'Authentication failed. Please try again.' });
     }
   };
 
@@ -102,14 +124,15 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
 
   if (otpPendingEmail) {
     return (
-      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <AccessibleDialog open onClose={closeModal} labelledBy="otp-dialog-title">
         <Card className="w-full max-w-md bg-black border-gray-800 text-white">
           <CardHeader className="relative pb-6">
             <Button
               variant="ghost"
               size="icon"
+              aria-label="Close verification dialog"
               className="absolute right-4 top-4 text-white hover:bg-gray-900"
-              onClick={() => { cancelOtp(); onClose(); }}
+              onClick={closeModal}
             >
               <X className="h-5 w-5" />
             </Button>
@@ -117,18 +140,27 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
               <div className="mb-6 flex justify-center">
                 <TwitterLogo size="xl" className="text-white" />
               </div>
-              <CardTitle className="text-2xl font-bold">Verification Required</CardTitle>
+              <CardTitle id="otp-dialog-title" className="text-2xl font-bold">Verification Required</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            <p className="text-center text-gray-400">
-              We detected a Chrome browser. Please enter the OTP sent to your email to continue.
+            <p id="otp-help" className="text-center text-gray-400">
+              Enter the login code sent to your email to continue.
             </p>
+            {(errors.general || authError) && <p id="otp-error" role="alert" className="text-red-400 text-sm">{errors.general || authError}</p>}
+            <Button type="button" variant="link" disabled={isLoading} onClick={async () => { setErrors({}); try { await retrySession(); } catch { setErrors({ general: "Could not resend code. Please retry." }); } }}>Retry / resend expired code</Button>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-white">Enter OTP</Label>
+                <Label htmlFor="login-otp" className="text-white">Enter login code</Label>
                 <Input
                   type="text"
+                  id="login-otp"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  required
+                  aria-invalid={Boolean(errors.general || authError)}
+                  aria-describedby={errors.general || authError ? "otp-help otp-error" : "otp-help"}
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
                   className="bg-transparent border-gray-600 text-white placeholder-gray-400 focus:border-blue-500 text-center text-lg tracking-widest"
@@ -141,7 +173,9 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                   try {
                     await verifyOtp(otp);
                     onClose();
-                  } catch (err) {}
+                  } catch (err: unknown) {
+                    setErrors({ general: err instanceof Error ? err.message : 'Invalid OTP. Please try again.' });
+                  }
                 }}
                 className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 rounded-full text-lg"
                 disabled={isLoading || otp.length < 6}
@@ -151,19 +185,20 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
             </div>
           </CardContent>
         </Card>
-      </div>
+      </AccessibleDialog>
     );
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <AccessibleDialog open={isOpen} onClose={closeModal} labelledBy="auth-dialog-title">
       <Card className="w-full max-w-md bg-black border-gray-800 text-white">
         <CardHeader className="relative pb-6">
           <Button
             variant="ghost"
             size="icon"
+            aria-label="Close sign-in dialog"
             className="absolute right-4 top-4 text-white hover:bg-gray-900"
-            onClick={onClose}
+            onClick={closeModal}
           >
             <X className="h-5 w-5" />
           </Button>
@@ -171,20 +206,20 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
             <div className="mb-6 flex justify-center">
               <TwitterLogo size="xl" className="text-white" />
             </div>
-            <CardTitle className="text-2xl font-bold">
-              {mode === 'login' ? 'Sign in to X' : 'Create your account'}
+            <CardTitle id="auth-dialog-title" className="text-2xl font-bold">
+              {mode === 'login' ? 'Sign in to Twiller' : 'Create your account'}
             </CardTitle>
           </div>
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {errors.general && (
-            <div className="bg-red-900/20 border border-red-800 rounded-lg p-3 text-red-400 text-sm">
-              {errors.general}
+          {(errors.general || authError) && (
+            <div role="alert" className="bg-red-900/20 border border-red-800 rounded-lg p-3 text-red-400 text-sm">
+              {errors.general || authError}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form ref={formRef} onSubmit={handleSubmit} aria-busy={isLoading} className="space-y-4">
             {mode === 'signup' && (
               <>
                 <div className="space-y-2">
@@ -193,7 +228,12 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                     <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                     <Input
                       id="displayName"
+                      autoFocus={mode === 'signup'}
+                      maxLength={50}
                       type="text"
+                      required
+                      aria-invalid={Boolean(errors.displayName)}
+                      aria-describedby={errors.displayName ? "displayName-error" : undefined}
                       placeholder="Your display name"
                       value={formData.displayName}
                       onChange={(e) => handleInputChange('displayName', e.target.value)}
@@ -202,7 +242,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                     />
                   </div>
                   {errors.displayName && (
-                    <p className="text-red-400 text-sm">{errors.displayName}</p>
+                    <p id="displayName-error" aria-live="polite" className="text-red-400 text-sm">{errors.displayName}</p>
                   )}
                 </div>
 
@@ -212,7 +252,11 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                     <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">@</span>
                     <Input
                       id="username"
+                      maxLength={50}
                       type="text"
+                      required
+                      aria-invalid={Boolean(errors.username)}
+                      aria-describedby={errors.username ? "username-error" : undefined}
                       placeholder="username"
                       value={formData.username}
                       onChange={(e) => handleInputChange('username', e.target.value)}
@@ -221,7 +265,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                     />
                   </div>
                   {errors.username && (
-                    <p className="text-red-400 text-sm">{errors.username}</p>
+                    <p id="username-error" aria-live="polite" className="text-red-400 text-sm">{errors.username}</p>
                   )}
                 </div>
               </>
@@ -233,7 +277,13 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                 <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
                 <Input
                   id="email"
+                  maxLength={254}
                   type="email"
+                  autoFocus={mode === 'login'}
+                  autoComplete="email"
+                  required
+                  aria-invalid={Boolean(errors.email)}
+                  aria-describedby={errors.email ? "email-error" : undefined}
                   placeholder="Enter your email"
                   value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
@@ -242,7 +292,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                 />
               </div>
               {errors.email && (
-                <p className="text-red-400 text-sm">{errors.email}</p>
+                <p id="email-error" aria-live="polite" className="text-red-400 text-sm">{errors.email}</p>
               )}
             </div>
 
@@ -253,6 +303,10 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  required
+                  aria-invalid={Boolean(errors.password)}
+                  aria-describedby={errors.password ? "password-error" : undefined}
                   placeholder="Enter your password"
                   value={formData.password}
                   onChange={(e) => handleInputChange('password', e.target.value)}
@@ -263,6 +317,8 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                   type="button"
                   variant="ghost"
                   size="sm"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
                   className="absolute right-1 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
                   onClick={() => setShowPassword(!showPassword)}
                 >
@@ -270,7 +326,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                 </Button>
               </div>
               {errors.password && (
-                <p className="text-red-400 text-sm">{errors.password}</p>
+                <p id="password-error" aria-live="polite" className="text-red-400 text-sm">{errors.password}</p>
               )}
             </div>
 
@@ -309,6 +365,28 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
             </span>
           </div>
 
+          {/* Google Sign In */}
+          <div className="space-y-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-gray-700 bg-black text-white hover:bg-gray-900 font-semibold py-3 rounded-full h-12 flex items-center justify-center gap-3"
+              onClick={handleGoogleSignIn}
+              disabled={isLoading}
+            >
+              <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+              </svg>
+              {mode === 'login' ? 'Sign in with Google' : 'Sign up with Google'}
+            </Button>
+            {googleError && (
+              <p className="text-red-400 text-xs text-center">{googleError}</p>
+            )}
+          </div>
+
           <div className="text-center">
             <p className="text-gray-400">
               {mode === 'login' ? "Don't have an account?" : "Already have an account?"}
@@ -324,12 +402,17 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
           </div>
 
           {mode === 'signup' && (
-            <div className="text-center text-xs text-gray-400">
-              By signing up, you agree to our Terms of Service and Privacy Policy, including Cookie Use.
+            <div className="text-center text-xs text-gray-500 leading-relaxed">
+              By signing up, you agree to our{' '}
+              <a href="/terms" className="text-blue-400 hover:underline">Terms of Service</a>
+              {' '}and{' '}
+              <a href="/privacy" className="text-blue-400 hover:underline">Privacy Policy</a>
+              , including{' '}
+              <a href="/cookies" className="text-blue-400 hover:underline">Cookie Use</a>.
             </div>
           )}
         </CardContent>
       </Card>
-    </div>
+    </AccessibleDialog>
   );
 }

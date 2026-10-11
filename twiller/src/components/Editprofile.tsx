@@ -1,5 +1,5 @@
 import { useAuth } from "@/context/AuthContext";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Camera, LinkIcon, MapPin, X } from "lucide-react";
@@ -7,9 +7,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
+import AccessibleDialog from "./ui/AccessibleDialog";
 import LoadingSpinner from "./loading-spinner";
-import axios from "axios";
-import axiosInstance from "@/lib/axiosInstance";
+import { mediaErrorMessage, uploadMedia } from "@/lib/media";
 
 const Editprofile = ({ isopen, onclose }: any) => {
   const { user, updateProfile } = useAuth();
@@ -17,22 +17,24 @@ const Editprofile = ({ isopen, onclose }: any) => {
   const [formData, setFormdata] = useState({
     displayName: user?.displayName || "",
     bio: user?.bio || "",
-    location: "Earth",
-    website: "example.com",
+    location: user?.location || "",
+    website: user?.website || "",
     avatar: user?.avatar || "",
     notificationsEnabled: user?.notificationsEnabled || false,
   });
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [error, setError] = useState<any>({});
   
-  const [selectedLang, setSelectedLang] = useState("en");
-  React.useEffect(() => {
-    const match = document.cookie.match(/googtrans=\/en\/([a-zA-Z-]+)/);
-    if (match) setSelectedLang(match[1]);
-  }, []);
-  const [showLangOtp, setShowLangOtp] = useState(false);
-  const [langOtpInput, setLangOtpInput] = useState("");
-  const [pendingLang, setPendingLang] = useState("");
-  const [otpMethod, setOtpMethod] = useState("");
+
+  useEffect(() => {
+    if (!isopen || !user) { setAvatarPreview(null); return; }
+    setFormdata({ displayName: user.displayName || "", bio: user.bio || "", location: user.location || "", website: user.website || "", avatar: user.avatar || "", notificationsEnabled: Boolean(user.notificationsEnabled) });
+    setAvatarPreview(null);
+    setError({});
+  }, [isopen, user]);
+  useEffect(() => () => {
+    if (avatarPreview?.startsWith("blob:")) URL.revokeObjectURL(avatarPreview);
+  }, [avatarPreview]);
 
   if (!isopen || !user) return null;
   const validateForm = () => {
@@ -48,7 +50,9 @@ const Editprofile = ({ isopen, onclose }: any) => {
       newErrors.bio = "Bio must be 160 characters or less";
     }
 
-    if (formData.website && formData.website.length > 100) {
+    if (formData.website && !/^https?:\/\//i.test(formData.website)) {
+      newErrors.website = "Website must start with http:// or https://";
+    } else if (formData.website && formData.website.length > 100) {
       newErrors.website = "Website must be 100 characters or less";
     }
 
@@ -66,9 +70,11 @@ const Editprofile = ({ isopen, onclose }: any) => {
 
     setIsLoading(true);
     try {
-      await updateProfile(formData);
+      const canonical = await updateProfile(formData);
+      setFormdata({ displayName: canonical.displayName || "", bio: canonical.bio || "", location: canonical.location || "", website: canonical.website || "", avatar: canonical.avatar || "", notificationsEnabled: Boolean(canonical.notificationsEnabled) });
+      setAvatarPreview(null);
       onclose();
-    } catch (error) {
+    } catch {
       setError({ general: "Failed to update profile. Please try again." });
     } finally {
       setIsLoading(false);
@@ -86,56 +92,20 @@ const Editprofile = ({ isopen, onclose }: any) => {
     if (!e.target.files || e.target.files.length === 0) return;
     setIsLoading(true);
     const image = e.target.files[0];
-    const formdataimg = new FormData();
-    formdataimg.set("image", image);
+    setAvatarPreview(URL.createObjectURL(image));
     try {
-      const res = await axios.post(
-        "https://api.imgbb.com/1/upload?key=97f3fb960c3520d6a88d7e29679cf96f",
-        formdataimg
-      );
-      const url = res.data.data.display_url;
-      if (url) {
-        setFormdata((prev) => ({ ...prev, avatar: url }));
-      }
-    } catch (error) {
-      console.log(error);
+      const uploaded = await uploadMedia(image, "image");
+      setFormdata((prev) => ({ ...prev, avatar: uploaded.url }));
+    } catch (error: unknown) {
+      setAvatarPreview(null);
+      setError((prev: any) => ({ ...prev, general: mediaErrorMessage(error, "Image upload failed. Please try again.") }));
     } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleLanguageChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const lang = e.target.value;
-    if (lang === selectedLang) return;
-    setPendingLang(lang);
-    setIsLoading(true);
-    try {
-      const res = await axiosInstance.post("/request-language-change", { email: user?.email, targetLanguage: lang });
-      setOtpMethod(res.data.method);
-      setShowLangOtp(true);
-    } catch (err: any) {
-      setError({ general: err.response?.data?.error || "Failed to request language change" });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const verifyLanguageOtp = async () => {
-    if (!langOtpInput) return;
-    setIsLoading(true);
-    try {
-      await axiosInstance.post("/verify-language-change", { email: user?.email, otp: langOtpInput, targetLanguage: pendingLang });
-      setSelectedLang(pendingLang);
-      document.cookie = `googtrans=/en/${pendingLang}; path=/`;
-      window.location.reload();
-    } catch (err: any) {
-      setError({ general: err.response?.data?.error || "Invalid OTP" });
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+    <AccessibleDialog open={isopen} onClose={onclose} labelledBy="edit-profile-title">
       <Card className="w-full max-w-2xl bg-black border-gray-800 text-white max-h-[90vh] overflow-y-auto">
         <CardHeader className="relative pb-4 border-b border-gray-800">
           <div className="flex items-center justify-between">
@@ -143,17 +113,20 @@ const Editprofile = ({ isopen, onclose }: any) => {
               <Button
                 variant="ghost"
                 size="icon"
+                aria-label="Close edit profile"
+                autoFocus
                 className="text-white bg-black hover:bg-gray-900"
-                onClick={onclose}
+                onClick={() => { setAvatarPreview(null); onclose(); }}
                 disabled={isLoading}
               >
                 <X className="h-5 w-5" />
               </Button>
-              <CardTitle className="text-xl font-bold">Edit profile</CardTitle>
+              <CardTitle id="edit-profile-title" className="text-xl font-bold">Edit profile</CardTitle>
             </div>
             <Button
               type="submit"
               form="edit-profile-form"
+              aria-busy={isLoading}
               className="bg-white text-black hover:bg-gray-200 font-semibold rounded-full px-6"
               disabled={isLoading}
             >
@@ -171,7 +144,7 @@ const Editprofile = ({ isopen, onclose }: any) => {
 
         <CardContent className="p-0">
           {error.general && (
-            <div className="bg-red-900/20 border border-red-800 rounded-lg p-3 text-red-400 text-sm m-4">
+            <div role="alert" className="bg-red-900/20 border border-red-800 rounded-lg p-3 text-red-400 text-sm m-4">
               {error.general}
             </div>
           )}
@@ -179,24 +152,14 @@ const Editprofile = ({ isopen, onclose }: any) => {
           <form id="edit-profile-form" onSubmit={handleSubmit}>
             {/* Cover Photo */}
             <div className="relative">
-              <div className="h-48 bg-gradient-to-r from-blue-600 to-purple-600 relative">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-3 rounded-full bg-black/70 hover:bg-black/90"
-                  disabled={isLoading}
-                >
-                  <Camera className="h-6 w-6 text-white" />
-                </Button>
-              </div>
+              <div aria-hidden="true" className="h-48 bg-gradient-to-r from-indigo-600 to-violet-500 relative" />
 
               {/* Profile Picture */}
               <div className="absolute -bottom-16 left-4">
                 <div className="relative">
                   <Avatar className="h-32 w-32 border-4 border-black">
-                    <AvatarImage src={user?.avatar} alt={user?.displayName} />
-                    <AvatarFallback className="text-2xl">
+                    <AvatarImage src={avatarPreview || formData.avatar || undefined} alt="" />
+                    <AvatarFallback aria-hidden="true" className="text-2xl">
                       {user?.displayName?.[0]}
                     </AvatarFallback>
                   </Avatar>
@@ -211,6 +174,7 @@ const Editprofile = ({ isopen, onclose }: any) => {
                     type="button"
                     variant="ghost"
                     size="sm"
+                    aria-label="Choose a profile photo"
                     className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-3 rounded-full bg-black/70 hover:bg-black/90"
                     disabled={isLoading}
                     onClick={() =>
@@ -232,6 +196,9 @@ const Editprofile = ({ isopen, onclose }: any) => {
                 <Input
                   id="displayName"
                   type="text"
+                  required
+                  aria-invalid={Boolean(error.displayName)}
+                  aria-describedby={error.displayName ? "edit-display-name-error" : "edit-display-name-help"}
                   value={formData.displayName}
                   onChange={(e) =>
                     handleInputChange("displayName", e.target.value)
@@ -243,9 +210,9 @@ const Editprofile = ({ isopen, onclose }: any) => {
                 />
                 <div className="flex justify-between text-sm">
                   {error.displayName && (
-                    <p className="text-red-400">{error.displayName}</p>
+                    <p id="edit-display-name-error" aria-live="polite" className="text-red-400">{error.displayName}</p>
                   )}
-                  <p className="text-gray-400 ml-auto">
+                  <p id="edit-display-name-help" className="text-gray-400 ml-auto">
                     {formData.displayName.length}/50
                   </p>
                 </div>
@@ -258,6 +225,8 @@ const Editprofile = ({ isopen, onclose }: any) => {
                 </Label>
                 <Textarea
                   id="bio"
+                  aria-invalid={Boolean(error.bio)}
+                  aria-describedby={error.bio ? "edit-bio-error" : "edit-bio-help"}
                   value={formData.bio}
                   onChange={(e) => handleInputChange("bio", e.target.value)}
                   className="bg-transparent border-gray-600 text-white placeholder-gray-400 focus:border-blue-500 resize-none min-h-[100px]"
@@ -266,8 +235,8 @@ const Editprofile = ({ isopen, onclose }: any) => {
                   disabled={isLoading}
                 />
                 <div className="flex justify-between text-sm">
-                  {error.bio && <p className="text-red-400">{error.bio}</p>}
-                  <p className="text-gray-400 ml-auto">
+                  {error.bio && <p id="edit-bio-error" aria-live="polite" className="text-red-400">{error.bio}</p>}
+                  <p id="edit-bio-help" className="text-gray-400 ml-auto">
                     {formData.bio.length}/160
                   </p>
                 </div>
@@ -283,6 +252,8 @@ const Editprofile = ({ isopen, onclose }: any) => {
                   <Input
                     id="location"
                     type="text"
+                    aria-invalid={Boolean(error.location)}
+                    aria-describedby={error.location ? "edit-location-error" : "edit-location-help"}
                     value={formData.location}
                     onChange={(e) =>
                       handleInputChange("location", e.target.value)
@@ -295,9 +266,9 @@ const Editprofile = ({ isopen, onclose }: any) => {
                 </div>
                 <div className="flex justify-between text-sm">
                   {error.location && (
-                    <p className="text-red-400">{error.location}</p>
+                    <p id="edit-location-error" aria-live="polite" className="text-red-400">{error.location}</p>
                   )}
-                  <p className="text-gray-400 ml-auto">
+                  <p id="edit-location-help" className="text-gray-400 ml-auto">
                     {formData.location.length}/30
                   </p>
                 </div>
@@ -313,6 +284,8 @@ const Editprofile = ({ isopen, onclose }: any) => {
                   <Input
                     id="website"
                     type="text"
+                    aria-invalid={Boolean(error.website)}
+                    aria-describedby={error.website ? "edit-website-error" : "edit-website-help"}
                     value={formData.website}
                     onChange={(e) =>
                       handleInputChange("website", e.target.value)
@@ -325,97 +298,38 @@ const Editprofile = ({ isopen, onclose }: any) => {
                 </div>
                 <div className="flex justify-between text-sm">
                   {error.website && (
-                    <p className="text-red-400">{error.website}</p>
+                    <p id="edit-website-error" aria-live="polite" className="text-red-400">{error.website}</p>
                   )}
-                  <p className="text-gray-400 ml-auto">
+                  <p id="edit-website-help" className="text-gray-400 ml-auto">
                     {formData.website.length}/100
                   </p>
                 </div>
               </div>
 
-              {/* Notifications Toggle */}
+              {/* Notifications currently exist only as in-app activity. */}
               <div className="flex items-center justify-between pt-4 border-t border-gray-800">
                 <div className="space-y-0.5">
-                  <Label className="text-white text-base">Keyword Notifications</Label>
+                  <Label className="text-white text-base">Activity</Label>
                   <p className="text-gray-400 text-sm">
-                    Get browser notifications when tweets contain "cricket" or "science"
+                    Likes, follows, replies, and mentions appear in the Activity page. Browser push and keyword alerts are not available.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!formData.notificationsEnabled && Notification.permission !== "granted") {
-                      Notification.requestPermission();
-                    }
-                    handleInputChange("notificationsEnabled", !formData.notificationsEnabled);
-                  }}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    formData.notificationsEnabled ? "bg-blue-500" : "bg-gray-700"
-                  }`}
-                  role="switch"
-                  aria-checked={formData.notificationsEnabled}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      formData.notificationsEnabled ? "translate-x-5" : "translate-x-0"
-                    }`}
-                  />
-                </button>
               </div>
 
               {/* Language Selector */}
               <div className="flex items-center justify-between pt-4 border-t border-gray-800">
                 <div className="space-y-0.5">
                   <Label className="text-white text-base">Interface Language</Label>
-                  <p className="text-gray-400 text-sm">Select your preferred language</p>
+                  <p className="text-gray-400 text-sm">The interface is currently available in English only.</p>
                 </div>
-                <select 
-                  value={selectedLang} 
-                  onChange={handleLanguageChange} 
-                  className="bg-gray-900 border border-gray-700 text-white rounded p-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={isLoading}
-                >
-                  <option value="en">English</option>
-                  <option value="es">Spanish</option>
-                  <option value="hi">Hindi</option>
-                  <option value="pt">Portuguese</option>
-                  <option value="zh-CN">Chinese</option>
-                  <option value="fr">French</option>
-                </select>
+                <span className="rounded border border-gray-700 px-3 py-2 text-sm text-gray-400">English</span>
               </div>
             </div>
           </form>
         </CardContent>
       </Card>
 
-      {showLangOtp && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
-          <div className="bg-gray-900 p-6 rounded-2xl w-full max-w-sm border border-gray-800 shadow-2xl">
-            <h3 className="text-white text-lg font-bold mb-2">Verify Language Change</h3>
-            <p className="text-gray-400 text-sm mb-4">
-              {otpMethod === "email" 
-                ? "An OTP was sent to your registered email address."
-                : "An OTP was sent to your registered mobile number."}
-            </p>
-            <input 
-              type="text" 
-              placeholder="Enter 6-digit OTP" 
-              value={langOtpInput} 
-              onChange={e => setLangOtpInput(e.target.value)} 
-              className="w-full bg-gray-950 border border-gray-700 text-white p-3 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:outline-none" 
-            />
-            <div className="flex gap-3">
-              <Button onClick={() => setShowLangOtp(false)} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white" disabled={isLoading}>Cancel</Button>
-              <Button onClick={verifyLanguageOtp} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white" disabled={isLoading}>
-                {isLoading ? "Verifying..." : "Confirm"}
-              </Button>
-            </div>
-            {error.general && <p className="text-red-400 text-sm mt-3 text-center">{error.general}</p>}
-          </div>
-        </div>
-      )}
-    </div>
+    </AccessibleDialog>
   );
 };
 

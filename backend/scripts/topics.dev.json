@@ -1,0 +1,11 @@
+[
+  { "slug": "react", "name": "React", "description": "React interfaces, patterns, and development." },
+  { "slug": "ai-ml", "name": "AI & ML", "description": "Artificial intelligence and machine learning conversations." },
+  { "slug": "ai-jobs", "name": "AI Jobs", "description": "Roles, skills, and opportunities in AI." },
+  { "slug": "hyderabad-tech", "name": "Hyderabad Tech", "description": "Technology conversations in Hyderabad." },
+  { "slug": "placement-prep", "name": "Placement Prep", "description": "Interview preparation and placement experiences." },
+  { "slug": "startups", "name": "Startups", "description": "Building and learning from startups." },
+  { "slug": "cloud-computing", "name": "Cloud Computing", "description": "Cloud platforms, architecture, and operations." },
+  { "slug": "gaming", "name": "Gaming", "description": "Games and the people who play them." },
+  { "slug": "movies", "name": "Movies", "description": "Films, recommendations, and conversations." }
+]

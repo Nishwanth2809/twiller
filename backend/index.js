@@ -11,16 +11,43 @@ import { UAParser } from "ua-parser-js";
 import User from "./models/user.js";
 import Tweet from "./models/tweet.js";
 import Subscription from "./models/subscription.js";
+import Conversation from "./models/conversation.js";
+import Message from "./models/message.js";
+import Notification from "./models/notification.js";
+import { markRead } from "./notification-operations.js";
+import { registerTopicRoutes } from "./topic-operations.js";
+import { registerCircleRoutes } from "./circle-operations.js";
+import LoginSession from "./models/loginSession.js";
+import { boundary, errorHandler, fail, resolveUser, sessionId, otpHash, userView, PUBLIC_USER_FIELDS } from "./security.js";
+import { verifyPurchase } from "./payment.js";
+import { deliverEmail } from "./mail.js";
+import { quotaState, transaction } from "./quota.js";
+import { createPost, deletePost, follow } from "./post-operations.js";
+import { toggleReaction, toggleBookmark } from "./reactions.js";
+import { normalizeHandle, pairKey } from "./handles.js";
+import { cursorFilter, pageResult, literalSearch } from "./pagination.js";
+import { rateLimit, issueChallenge, checkChallenge, consumeChallenge } from "./challenges.js";
+import { corsOrigins, firebaseAuthEmulatorConfig, rejectOrigin, validateConfiguration } from "./config.js";
+import { prepareIndexes } from "./readiness.js";
+import { storeMedia, mediaDirectory, attachMedia, AUDIO_MAX } from "./media.js";
+import Media from "./models/media.js";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 
-dotenv.config();
+if (process.env.NODE_ENV !== "test") dotenv.config({ quiet: true });
 dns.setDefaultResultOrder("ipv4first");
 
 // ─── Firebase Admin Init ──────────────────────────────────────────────────────
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
+const localAuthEmulator = firebaseAuthEmulatorConfig(process.env);
 
 if (!admin.apps.length) {
   try {
+    if (localAuthEmulator) {
+      admin.initializeApp({ projectId: localAuthEmulator.projectId });
+      console.log("✅ Firebase Auth Emulator enabled for local acceptance");
+    } else {
     let serviceAccount;
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
       serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -40,22 +67,30 @@ if (!admin.apps.length) {
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
     });
+    }
     console.log("✅ Firebase Admin initialized");
   } catch (err) {
-    console.warn("⚠️ Firebase Admin init failed:", err.message);
+    console.warn("Firebase Admin initialization failed; check configuration");
   }
 }
 
-const app = express();
-app.use(cors());
-app.use(express.json({ limit: "100mb" }));
-app.use(express.urlencoded({ limit: "100mb", extended: true }));
+export const app = express();
+export const securityDependencies = { verifyToken: token => admin.auth().verifyIdToken(token), User, LoginSession, Conversation };
+export const paymentDependencies = { Subscription, User, mongoose, razorpay: null, secret: process.env.RAZORPAY_KEY_SECRET, plans: null };
+export const mailDependencies = { send: options => sendTwillerEmail(options), resetLink: email => admin.auth().generatePasswordResetLink(email) };
+
+// Browser-origin policy is separate from Firebase authentication.
+app.use(rejectOrigin);
+app.use(cors({origin:(value,callback)=>callback(null,!value||corsOrigins().has(value)),credentials:false,allowedHeaders:["Content-Type","Authorization"],exposedHeaders:["X-Has-More","X-Next-Cursor"]}));
+app.use(express.json({limit:"256kb"}));
+app.use(express.urlencoded({limit:"256kb",extended:false}));
 
 // ─── Razorpay Instance ────────────────────────────────────────────────────────
-const razorpay = new Razorpay({
+const razorpay = process.env.RAZORPAY_KEY_ID ? new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+}) : null;
+paymentDependencies.razorpay = razorpay;
 
 // ─── Nodemailer Transporter ───────────────────────────────────────────────────
 function lookupIpv4Only(hostname, options, callback) {
@@ -78,19 +113,10 @@ const transporter = nodemailer.createTransport({
 });
 
 async function sendTwillerEmail(mailOptions) {
-  if (process.env.APPS_SCRIPT_URL) {
-    try {
-      const response = await fetch(process.env.APPS_SCRIPT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(mailOptions),
-      });
-      return await response.json();
-    } catch (e) {
-      console.error("Apps Script email failed:", e);
-    }
-  }
-  return transporter.sendMail(mailOptions);
+  return deliverEmail(mailOptions, {
+    appsScriptUrl: process.env.APPS_SCRIPT_URL,
+    sendSmtp: options => transporter.sendMail(options),
+  });
 }
 
 // ─── Plan Config ──────────────────────────────────────────────────────────────
@@ -100,6 +126,8 @@ const PLANS = {
   silver: { limit: 5,        price: 30000,  label: "Silver Plan" },
   gold:   { limit: Infinity, price: 100000, label: "Gold Plan" },
 };
+
+paymentDependencies.plans = PLANS;
 
 // ─── IST Time Gate Helper ─────────────────────────────────────────────────────
 function isPaymentWindowOpen() {
@@ -174,7 +202,7 @@ async function sendInvoiceEmail(email, displayName, plan, paymentId, amount) {
   </html>
   `;
 
-  await sendTwillerEmail({
+  await mailDependencies.send({
     from: `"Twiller" <${process.env.EMAIL_USER}>`,
     to: email,
     subject: `🎉 Twiller ${planConfig.label} - Payment Confirmed`,
@@ -184,193 +212,147 @@ async function sendInvoiceEmail(email, displayName, plan, paymentId, amount) {
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
-app.get("/", (req, res) => {
+app.get("/", boundary("GET /", securityDependencies), (req, res) => {
   res.send("Twiller backend is running successfully");
 });
 
-// ─── Login Session & OTP Helper ──────────────────────────────────────────────
-app.post("/log-session", async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) return res.status(400).send({ error: "Email is required" });
+// Firebase authenticates the credential; Mongo persists application verification.
+app.post("/log-session", boundary("POST /log-session", securityDependencies), async (req, res) => {
+  const token = req.identity;
+  const user = await resolveUser(User, token);
+  if (!user) fail(404, "PROFILE_REQUIRED", "Complete account registration to continue");
+  const parser = new UAParser(req.headers["user-agent"] || "");
+  const loginInfo = { browser: parser.getBrowser().name || "Unknown", os: parser.getOS().name || "Unknown", device: parser.getDevice().type || "desktop", ip: req.ip };
+  const key = sessionId(token);
 
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).send({ error: "User not found" });
-
-    const userAgentStr = req.headers["user-agent"] || "";
-    const parser = new UAParser(userAgentStr);
-    const browser = parser.getBrowser();
-    const os = parser.getOS();
-    const device = parser.getDevice();
-
-    const browserName = browser.name || "Unknown";
-    const osName = os.name || "Unknown";
-    const deviceType = device.type || "desktop"; 
-    const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "Unknown";
-
-    const sessionInfo = {
-      browser: browserName,
-      os: osName,
-      device: deviceType,
-      ip: ip,
-      timestamp: new Date(),
-      status: "pending"
-    };
-
-    if (deviceType === "mobile") {
-      const now = new Date();
-      const istTime = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
-      const hours = istTime.getUTCHours();
-      if (hours < 10 || hours >= 13) {
-        sessionInfo.status = "blocked";
-        user.loginHistory.push(sessionInfo);
-        await user.save();
-        return res.status(403).send({ error: "Mobile login is only allowed between 10:00 AM and 1:00 PM IST." });
-      }
+  // Google OAuth is its own strong authentication — skip OTP and auto-verify
+  const provider = token.firebase?.sign_in_provider;
+  const isOAuthProvider = provider === "google.com" || provider === "apple.com" || provider === "github.com" ||
+    Boolean(token.firebase?.identities?.["google.com"]) ||
+    Boolean(token.firebase?.identities?.["apple.com"]) ||
+    Boolean(token.firebase?.identities?.["github.com"]);
+  if (isOAuthProvider) {
+    try {
+      await LoginSession.findOneAndUpdate(
+        { _id: key },
+        {
+          $set: { uid: token.uid, status: "verified", loginInfo, expiresAt: new Date(Date.now() + 24 * 3600000) },
+          $unset: { otpHash: 1, otpExpiresAt: 1, attempts: 1 }
+        },
+        { upsert: true, new: true }
+      );
+    } catch (err) {
+      if (err.code === 11000) {
+        // Race condition: doc was just created — verify it's in a usable state
+        const current = await LoginSession.findById(key);
+        if (!current || current.status === "revoked") fail(401, "SESSION_REVOKED", "Please sign in again");
+      } else throw err;
     }
-
-    if (browserName.includes("Chrome") && !browserName.includes("Edge")) {
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      user.loginOtp = otp;
-      const expiresAt = new Date();
-      expiresAt.setMinutes(expiresAt.getMinutes() + 10);
-      user.loginOtpExpiresAt = expiresAt;
-      
-      sessionInfo.status = "otp_pending";
-      user.loginHistory.push(sessionInfo);
-      await user.save();
-
-      const html = `
-        <h3>Login Verification</h3>
-        <p>Your OTP for login is: <strong style="font-size: 24px;">${otp}</strong></p>
-        <p>This OTP will expire in 10 minutes.</p>
-      `;
-      try {
-        await sendTwillerEmail({
-          from: `"Twiller" <${process.env.EMAIL_USER}>`,
-          to: user.email,
-          subject: "🔐 Twiller - Login Verification OTP",
-          html,
-        });
-      } catch (err) {
-        console.error("OTP Email failed:", err.message);
-      }
-
-      return res.status(200).send({ requiresOtp: true });
-    } else {
-      sessionInfo.status = "success";
-      user.loginHistory.push(sessionInfo);
-      await user.save();
-      return res.status(200).send({ requiresOtp: false });
-    }
-  } catch (error) {
-    console.error("log-session error:", error);
-    return res.status(500).send({ error: error.message });
+    try { await User.updateOne({ firebaseUid: token.uid }, { $push: { loginHistory: { ...loginInfo, timestamp: new Date(), status: "success" } } }); } catch { /* non-critical */ }
+    return res.json({ requiresOtp: false });
   }
-});
 
-app.post("/verify-login-otp", async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).send({ error: "User not found" });
-
-    if (user.loginOtp !== otp) {
-      return res.status(400).send({ error: "Invalid OTP" });
-    }
-    if (new Date() > user.loginOtpExpiresAt) {
-      return res.status(400).send({ error: "OTP has expired" });
-    }
-
-    user.loginOtp = null;
-    user.loginOtpExpiresAt = null;
-    
-    for (let i = user.loginHistory.length - 1; i >= 0; i--) {
-      if (user.loginHistory[i].status === "otp_pending") {
-        user.loginHistory[i].status = "success";
-        break;
-      }
-    }
-    
-    await user.save();
-    return res.status(200).send({ success: true });
-  } catch (error) {
-    console.error("verify-login-otp error:", error);
-    return res.status(500).send({ error: error.message });
+  if (parser.getDevice().type === "mobile") {
+    const hour = new Date(Date.now() + 5.5 * 3600000).getUTCHours();
+    if (hour < 10 || hour >= 13) fail(403, "LOGIN_WINDOW", "Mobile login is only allowed between 10:00 AM and 1:00 PM IST.");
   }
-});
-
-// Register
-app.post("/register", async (req, res) => {
+  let session = await LoginSession.findById(key);
+  if (session?.status === "revoked") fail(401, "SESSION_REVOKED", "Please sign in again");
+  if (session?.status === "verified" && session.expiresAt > new Date()) return res.json({ requiresOtp: false });
+  if (session?.status === "pending" && session.otpExpiresAt > new Date()) return res.json({ requiresOtp: true });
+  await rateLimit(`login:${token.uid}`);
+  await rateLimit(`login-ip:${req.ip}`,30);
+  const otp = crypto.randomInt(100000, 1000000).toString();
+  const hash = otpHash(key, otp);
   try {
-    const existinguser = await User.findOne({ email: req.body.email });
-    if (existinguser) {
-      return res.status(200).send(existinguser);
-    }
-    const newUser = new User(req.body);
-    await newUser.save();
-    return res.status(201).send(newUser);
-  } catch (error) {
-    return res.status(400).send({ error: error.message });
-  }
-});
-
-// Logged in user
-app.get("/loggedinuser", async (req, res) => {
-  try {
-    const { email } = req.query;
-    if (!email) return res.status(400).send({ error: "Email required" });
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).send({ error: "User not found" });
-    return res.status(200).send(user);
-  } catch (error) {
-    return res.status(400).send({ error: error.message });
-  }
-});
-
-// Update profile
-app.patch("/userupdate/:email", async (req, res) => {
-  try {
-    const { email } = req.params;
-    const updated = await User.findOneAndUpdate(
-      { email },
-      { $set: req.body },
-      { new: true, upsert: false }
+    session = await LoginSession.findOneAndUpdate(
+      { _id: key },
+      {
+        $set: {
+          uid: token.uid,
+          status: "pending",
+          attempts: 0,
+          otpHash: hash,
+          otpExpiresAt: new Date(Date.now() + 600000),
+          expiresAt: new Date(Date.now() + 24 * 3600000),
+          loginInfo
+        }
+      },
+      { upsert: true, new: true }
     );
-    return res.status(200).send(updated);
-  } catch (error) {
-    return res.status(400).send({ error: error.message });
+  } catch (err) {
+    if (err.code !== 11000) throw err;
+    // Race: another request created the doc — return OTP required
+    return res.json({ requiresOtp: true });
   }
+  try {
+    await mailDependencies.send({ to: user.email, subject: "Twiller - Login verification", html: `<p>Your login code is <strong>${otp}</strong>. It expires in 10 minutes.</p>` });
+  } catch {
+    await LoginSession.deleteOne({ _id: key, otpHash: hash });
+    fail(503, "DELIVERY_FAILED", "We could not send your login code. Please retry");
+  }
+  res.json({ requiresOtp: true });
+});
+app.post("/verify-login-otp", boundary("POST /verify-login-otp", securityDependencies), async (req, res) => {
+  const key = sessionId(req.identity);
+  const result = await LoginSession.findOneAndUpdate({ _id: key, uid: req.identity.uid, status: "pending", attempts:{$lt:5}, otpHash: otpHash(key, req.body.otp), otpExpiresAt: { $gt: new Date() }, expiresAt: { $gt: new Date() } }, { $set: { status: "verified" }, $unset: { otpHash: 1, otpExpiresAt: 1 } }, { new: true });
+  if(!result) {
+    await LoginSession.updateOne({_id:key,status:"pending",attempts:{$lt:5}},{$inc:{attempts:1}});
+    fail(400,"INVALID_OTP","Invalid, expired or exhausted login code");
+  }
+  try { await User.updateOne({ firebaseUid: req.identity.uid }, { $push: { loginHistory: { ...result.loginInfo?.toObject?.() || result.loginInfo, timestamp: new Date(), status: "success" } } }); }
+  catch { console.error("Login history update failed"); }
+  res.json({ success: true });
+});
+app.post("/logout", boundary("POST /logout", securityDependencies), async (req, res) => {
+  await LoginSession.findOneAndUpdate({ _id: sessionId(req.identity) }, { $set: { uid: req.identity.uid, status: "revoked", expiresAt: new Date(Date.now() + 24 * 3600000) }, $unset: { otpHash: 1, otpExpiresAt: 1 } }, { upsert: true });
+  res.json({ success: true });
+});
+app.post("/register", boundary("POST /register", securityDependencies), async (req, res) => {
+  const token = req.identity;
+  let existing = await resolveUser(User, token);
+  if (existing) {
+    // Sync Google profile picture & display name for existing users that have none
+    const updates = {};
+    if (!existing.avatar && token.picture) updates.avatar = token.picture;
+    if (!existing.displayName && token.name) updates.displayName = token.name;
+    if (Object.keys(updates).length) {
+      existing = await User.findOneAndUpdate({ _id: existing._id }, { $set: updates }, { new: true });
+    }
+    return res.status(200).json(userView(existing));
+  }
+  const username=normalizeHandle(req.body.username);
+  if(await User.findOne({username:new RegExp("^"+username+"$","i")}))fail(409,"USERNAME_UNAVAILABLE","Choose another username");
+  // Allow Google/Firebase picture URL as avatar — token.picture is already verified by Firebase
+  const avatarUrl = req.body.avatar || token.picture || "";
+  if(avatarUrl && avatarUrl !== token.picture) fail(400,"INVALID_MEDIA","Use a verified avatar upload after registration");
+  let user;
+  try {
+    user = await User.create({ firebaseUid: token.uid, email: token.email, username: normalizeHandle(req.body.username), displayName: req.body.displayName, avatar: avatarUrl });
+  } catch (err) {
+    if (err.code !== 11000) throw err;
+    user = await User.findOne({ firebaseUid: token.uid });
+    if (!user) fail(409,"USERNAME_UNAVAILABLE","Choose another username");
+  }
+  res.status(201).json(userView(user));
+});
+app.get("/loggedinuser", boundary("GET /loggedinuser", securityDependencies), async (req, res) => res.json({...userView(req.principal, true),...quotaState(req.principal)}));
+app.patch("/userupdate/:email", boundary("PATCH /userupdate/:email", securityDependencies), async (req,res)=>{
+  const updated=await transaction(async session=>{
+    if(req.body.avatar&&req.body.avatar!==req.principal.avatar)await attachMedia(req.body.avatar,"image",req.principal._id,session);
+    return User.findOneAndUpdate({_id:req.principal._id},{$set:req.body},{new:true,runValidators:true,session});
+  });
+  if(!updated)fail(404,"NOT_FOUND","Account not found");
+  res.json({...userView(updated,true),...quotaState(updated)});
 });
 
 // Get user plan + tweet count
-app.get("/user-plan/:email", async (req, res) => {
-  try {
-    const user = await User.findOne({ email: req.params.email });
-    if (!user) return res.status(404).send({ error: "User not found" });
-
-    // Reset tweet count if plan expired
-    if (user.planExpiresAt && new Date() > user.planExpiresAt) {
-      user.plan = "free";
-      user.tweetCount = 0;
-      user.planExpiresAt = null;
-      await user.save();
-    }
-
-    const planLimit = PLANS[user.plan]?.limit ?? 1;
-    return res.status(200).send({
-      plan: user.plan,
-      tweetCount: user.tweetCount,
-      planLimit: planLimit === Infinity ? -1 : planLimit,
-      planExpiresAt: user.planExpiresAt,
-    });
-  } catch (error) {
-    return res.status(400).send({ error: error.message });
-  }
+app.get("/user-plan/:email", boundary("GET /user-plan/:email", securityDependencies), async (req, res) => {
+  res.json(quotaState(req.principal));
 });
 
 // Create Razorpay Order (time-gated)
-app.post("/create-order", async (req, res) => {
+app.post("/create-order", boundary("POST /create-order", securityDependencies), async (req, res) => {
   try {
     if (!isPaymentWindowOpen()) {
       return res.status(403).send({
@@ -383,10 +365,11 @@ app.post("/create-order", async (req, res) => {
       return res.status(400).send({ error: "Invalid plan" });
     }
 
-    const user = await User.findOne({ email });
+    const user = await User.findById(req.principal._id);
     if (!user) return res.status(404).send({ error: "User not found" });
 
     const amount = PLANS[plan].price;
+    if (!razorpay) fail(503, "PAYMENT_UNAVAILABLE", "Payments are unavailable");
     const order = await razorpay.orders.create({
       amount,
       currency: "INR",
@@ -395,447 +378,433 @@ app.post("/create-order", async (req, res) => {
     });
 
     // Save pending subscription record
+    if (!razorpay) fail(503, "PAYMENT_UNAVAILABLE", "Payments are unavailable");
     const sub = new Subscription({
       userId: user._id,
       plan,
       razorpayOrderId: order.id,
       amount,
       status: "created",
+      currency: "INR",
     });
     await sub.save();
 
     return res.status(200).send({ orderId: order.id, amount, currency: "INR" });
   } catch (error) {
-    console.error("create-order error:", error);
-    return res.status(500).send({ error: error.message });
+    console.error("create-order failed");
+    return res.status(500).send({ error: "Request could not be completed" });
   }
 });
 
-// Verify Payment & Upgrade Plan
-app.post("/verify-payment", async (req, res) => {
-  try {
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan, email } = req.body;
-
-    // Verify signature
-    const body = razorpay_order_id + "|" + razorpay_payment_id;
-    const expectedSignature = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-      .update(body)
-      .digest("hex");
-
-    if (expectedSignature !== razorpay_signature) {
-      return res.status(400).send({ error: "Invalid payment signature" });
-    }
-
-    // Upgrade user plan
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30);
-
-    const user = await User.findOneAndUpdate(
-      { email },
-      {
-        plan,
-        tweetCount: 0, // reset count on upgrade
-        planExpiresAt: expiresAt,
-        planActivatedAt: new Date(),
-      },
-      { new: true }
-    );
-
-    if (!user) return res.status(404).send({ error: "User not found" });
-
-    // Update subscription record
-    await Subscription.findOneAndUpdate(
-      { razorpayOrderId: razorpay_order_id },
-      {
-        razorpayPaymentId: razorpay_payment_id,
-        status: "paid",
-        paidAt: new Date(),
-        invoiceSentAt: new Date(),
-      }
-    );
-
-    // Send invoice email
+// Verify provider settlement and apply exactly once with the purchase/user transaction.
+app.post("/verify-payment", boundary("POST /verify-payment", securityDependencies), async (req,res)=>{
+  const result=await verifyPurchase(req.body,req.principal,paymentDependencies);
+  const claim=await Subscription.findOneAndUpdate({razorpayOrderId:req.body.razorpay_order_id,status:"paid",invoiceSentAt:null,$or:[{invoiceStatus:{$in:["pending","failed"]}},{invoiceStatus:{$exists:false}},{invoiceStatus:"sending",invoiceAttemptAt:{$lt:new Date(Date.now()-60000)}}]},{$set:{invoiceStatus:"sending",invoiceAttemptAt:new Date()}},{new:true});
+  if(claim) {
     try {
-      await sendInvoiceEmail(
-        user.email,
-        user.displayName,
-        plan,
-        razorpay_payment_id,
-        PLANS[plan].price
-      );
-    } catch (emailErr) {
-      console.error("Email send failed:", emailErr.message);
+      await sendInvoiceEmail(req.principal.email,req.principal.displayName,result.plan,req.body.razorpay_payment_id,PLANS[result.plan].price);
+      await Subscription.updateOne({_id:claim._id,invoiceAttemptAt:claim.invoiceAttemptAt},{$set:{invoiceStatus:"sent",invoiceSentAt:new Date()}});
+    } catch {
+      await Subscription.updateOne({_id:claim._id,invoiceAttemptAt:claim.invoiceAttemptAt},{$set:{invoiceStatus:"failed"}});
     }
-
-    return res.status(200).send({
-      success: true,
-      plan: user.plan,
-      planExpiresAt: user.planExpiresAt,
-    });
-  } catch (error) {
-    console.error("verify-payment error:", error);
-    return res.status(500).send({ error: error.message });
   }
+  const purchase=await Subscription.findOne({razorpayOrderId:req.body.razorpay_order_id});
+  res.json({...result,invoiceDelivery:purchase.invoiceStatus||"pending"});
+});
+// Firebase's hosted reset action validates expiring, single-use ownership proof.
+// Requesting a link never changes a password or creates a Firebase account.
+app.post("/forgot-password", boundary("POST /forgot-password", securityDependencies), async (req, res) => {
+  await rateLimit(`recovery-ip:${req.ip}`,10);
+  await rateLimit(`recovery-locator:${req.body.email.toLowerCase()}`,3);
+  try {
+    let recoveryEmail = req.body.email;
+    if (!recoveryEmail.includes("@")) {
+      const account = await User.findOne({ phoneNumber: recoveryEmail }).select("email");
+      recoveryEmail = account?.email;
+    }
+    if (recoveryEmail) {
+    const link = await mailDependencies.resetLink(recoveryEmail);
+    await mailDependencies.send({ to: recoveryEmail, subject: "Twiller - Reset your password", html: `<p>Use this link to choose a new password:</p><a href="${link.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}">Reset password</a>` });
+    }
+  } catch (err) {
+    if (err.code !== "auth/user-not-found") fail(503, "RECOVERY_UNAVAILABLE", "We could not send a reset link. Please retry later");
+  }
+  res.json({ success: true, message: "If the account supports password sign-in, a reset link has been sent. Your password changes only after you use that link." });
 });
 
-// ─── Password Generator (alpha only) ─────────────────────────────────────────
-function generateAlphaPassword(length = 12) {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-  let password = "";
-  for (let i = 0; i < length; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return password;
-}
-
-// ─── Check if same calendar day (IST) ────────────────────────────────────────
-function isSameDayIST(date1, date2) {
-  const istOffset = 5.5 * 60 * 60 * 1000;
-  const d1 = new Date(date1.getTime() + istOffset);
-  const d2 = new Date(date2.getTime() + istOffset);
-  return (
-    d1.getUTCFullYear() === d2.getUTCFullYear() &&
-    d1.getUTCMonth() === d2.getUTCMonth() &&
-    d1.getUTCDate() === d2.getUTCDate()
-  );
-}
-
-// Forgot Password
-app.post("/forgot-password", async (req, res) => {
-  try {
-    const { email: emailOrPhone } = req.body;
-    if (!emailOrPhone) return res.status(400).send({ error: "Email or phone number is required" });
-
-    const query = emailOrPhone.includes("@") 
-      ? { email: emailOrPhone } 
-      : { phoneNumber: emailOrPhone };
-
-    const user = await User.findOne(query);
-    if (!user) return res.status(404).send({ error: "No account found with this email or phone number" });
-
-    // Check daily limit
-    if (user.lastPasswordReset && isSameDayIST(user.lastPasswordReset, new Date())) {
-      return res.status(429).send({
-        error: "You can use this option only one time per day.",
-        rateLimited: true,
-      });
-    }
-
-    // Generate alpha-only password
-    const newPassword = generateAlphaPassword(12);
-
-    // Update password in Firebase Auth
-    try {
-      try {
-        const firebaseUser = await admin.auth().getUserByEmail(user.email);
-        await admin.auth().updateUser(firebaseUser.uid, { password: newPassword });
-      } catch (err) {
-        if (err.code === 'auth/user-not-found') {
-          // Sync missing user to Firebase
-          await admin.auth().createUser({
-            email: user.email,
-            password: newPassword,
-            displayName: user.displayName,
-          });
-        } else {
-          throw err;
-        }
-      }
-    } catch (fbErr) {
-      console.error("Firebase password update failed:", fbErr.message);
-      return res.status(500).send({ error: "Failed to update password. Please try again." });
-    }
-
-    // Update last reset timestamp
-    user.lastPasswordReset = new Date();
-    await user.save();
-
-    // Send email with new password
-    const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <style>
-        body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 20px; }
-        .container { max-width: 600px; margin: auto; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
-        .header { background: linear-gradient(135deg, #1d9bf0, #7c3aed); padding: 30px; text-align: center; color: white; }
-        .header h1 { margin: 0; font-size: 28px; }
-        .header p { margin: 8px 0 0; opacity: 0.9; }
-        .body { padding: 30px; }
-        .password-box { background: #f3f4f6; border: 2px dashed #1d9bf0; border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0; }
-        .password-box .password { font-size: 28px; font-weight: bold; letter-spacing: 3px; color: #1d9bf0; font-family: monospace; }
-        .footer { background: #f9fafb; padding: 20px; text-align: center; color: #9ca3af; font-size: 13px; }
-        .warning { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px; margin: 16px 0; color: #92400e; font-size: 14px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>🔐 Password Reset</h1>
-          <p>Twiller Account Recovery</p>
-        </div>
-        <div class="body">
-          <p style="font-size:16px;">Hi <strong>${user.displayName}</strong>,</p>
-          <p>We received a password reset request for your account. Here is your new generated password:</p>
-          <div class="password-box">
-            <p style="margin:0 0 8px; color:#6b7280; font-size:14px;">Your New Password</p>
-            <div class="password">${newPassword}</div>
-          </div>
-          <div class="warning">
-            ⚠️ <strong>Important:</strong> Please use this password to log in and consider changing it from your profile settings. This reset can only be used once per day.
-          </div>
-          <p style="color:#6b7280; font-size:14px;">If you didn't request this reset, please secure your account immediately.</p>
-        </div>
-        <div class="footer">
-          <p>© 2024 Twiller · This is an automated email. Please do not reply.</p>
-        </div>
-      </div>
-    </body>
-    </html>
-    `;
-
-    try {
-      await sendTwillerEmail({
-        from: `"Twiller" <${process.env.EMAIL_USER}>`,
-        to: user.email,
-        subject: "🔐 Twiller - Your Password Has Been Reset",
-        html,
-      });
-
-      return res.status(200).send({
-        success: true,
-        message: "A new password has been sent to your email address.",
-        generatedPassword: newPassword,
-      });
-    } catch (emailErr) {
-      console.error("Password reset email failed:", emailErr.message);
-      return res.status(200).send({
-        success: true,
-        emailDeliveryFailed: true,
-        message: "Password reset completed, but the email could not be delivered. Use the password shown on this page.",
-        generatedPassword: newPassword,
-      });
-    }
-  } catch (error) {
-    console.error("forgot-password error:", error);
-    return res.status(500).send({ error: error.message });
-  }
+app.post("/request-language-change", boundary("POST /request-language-change", securityDependencies), async (req, res) => {
+  await rateLimit(`language-ip:${req.ip}`,30);
+  const result=await issueChallenge(req.principal,"language",req.body.targetLanguage,otp=>mailDependencies.send({to:req.principal.email,subject:"Twiller - Language verification",html:`<p>Your code is <strong>${otp}</strong>. It expires in ten minutes.</p>`}));
+  res.json({method:"email",...result});
 });
 
-// Language Switch Routes
-app.post("/request-language-change", async (req, res) => {
-  try {
-    const { email, targetLanguage } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).send({ error: "User not found" });
-
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.languageOtp = otp;
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
-    user.languageOtpExpiresAt = expiresAt;
-    await user.save();
-
-    if (targetLanguage === 'fr') {
-      // Send to registered email
-      const html = `
-        <h3>Language Change Verification</h3>
-        <p>Your OTP to switch your language to French is: <strong style="font-size: 24px;">${otp}</strong></p>
-      `;
-      await sendTwillerEmail({ to: user.email, subject: "🔐 Twiller - Language Change OTP", html });
-      return res.status(200).send({ method: "email" });
-    } else {
-      // Send to registered mobile number (Simulated via email for testing without Twilio)
-      const phone = user.phoneNumber || "your registered mobile number";
-      const html = `
-        <div style="background-color: #f3f4f6; padding: 20px;">
-          <p style="color: #666; font-size: 12px;">[SIMULATED SMS GATEWAY]</p>
-          <p>This message was sent to <strong>${phone}</strong>.</p>
-          <p>Your Twiller OTP to switch language is: <strong>${otp}</strong></p>
-        </div>
-      `;
-      await sendTwillerEmail({ to: user.email, subject: `SMS to ${phone} - OTP`, html });
-      return res.status(200).send({ method: "phone", phoneMasked: phone.substring(0, 3) + "****" + phone.slice(-2) });
-    }
-  } catch (error) {
-    return res.status(500).send({ error: error.message });
-  }
-});
-
-app.post("/verify-language-change", async (req, res) => {
-  try {
-    const { email, otp, targetLanguage } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).send({ error: "User not found" });
-
-    if (!user.languageOtp || user.languageOtp !== otp || new Date() > user.languageOtpExpiresAt) {
-      return res.status(400).send({ error: "Invalid or expired OTP" });
-    }
-
-    user.language = targetLanguage;
-    user.languageOtp = null;
-    user.languageOtpExpiresAt = null;
-    await user.save();
-
-    return res.status(200).send({ success: true, language: user.language });
-  } catch (error) {
-    return res.status(500).send({ error: error.message });
-  }
+app.post("/verify-language-change", boundary("POST /verify-language-change", securityDependencies), async (req, res) => {
+  const proof=await checkChallenge(req.principal._id,"language",req.body.targetLanguage,req.body.otp);
+  await transaction(async session=>{
+    await consumeChallenge(proof,session);
+    await User.updateOne({_id:req.principal._id},{$set:{language:req.body.targetLanguage}},{session,runValidators:true});
+  });
+  res.json({success:true,language:req.body.targetLanguage});
 });
 
 // Generate Audio OTP
-app.post("/generate-audio-otp", async (req, res) => {
-  try {
-    const { email } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) return res.status(404).send({ error: "User not found" });
-
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.audioOtp = otp;
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
-    user.audioOtpExpiresAt = expiresAt;
-    await user.save();
-
-    const html = `
-      <h3>Audio Upload Verification</h3>
-      <p>Your OTP for uploading an audio tweet is: <strong style="font-size: 24px;">${otp}</strong></p>
-      <p>This OTP will expire in 10 minutes.</p>
-    `;
-    
-    await sendTwillerEmail({
-      to: user.email,
-      subject: "🔐 Twiller - Audio Upload OTP",
-      html,
-    });
-
-    return res.status(200).send({ success: true });
-  } catch (error) {
-    return res.status(500).send({ error: error.message });
-  }
+app.post("/generate-audio-otp", boundary("POST /generate-audio-otp", securityDependencies), async (req, res) => {
+  await rateLimit(`audio-ip:${req.ip}`,30);
+  const result=await issueChallenge(req.principal,"audio","audio",otp=>mailDependencies.send({to:req.principal.email,subject:"Twiller - Audio verification",html:`<p>Your code is <strong>${otp}</strong>. It expires in ten minutes.</p>`}));
+  res.json({success:true,...result,delivery:"email"});
 });
 
 // Post a tweet (with plan limit check)
-app.post("/post", async (req, res) => {
-  try {
-    const { author } = req.body;
-
-    // Fetch author to check plan
-    const user = await User.findById(author);
-    if (!user) return res.status(404).send({ error: "User not found" });
-
-    // Reset if plan expired
-    if (user.planExpiresAt && new Date() > user.planExpiresAt) {
-      user.plan = "free";
-      user.tweetCount = 0;
-      user.planExpiresAt = null;
-      await user.save();
-    }
-
-    if (req.body.audio) {
-      if (!req.body.audioOtp || req.body.audioOtp !== user.audioOtp || new Date() > user.audioOtpExpiresAt) {
-        return res.status(401).send({ error: "Valid Audio OTP is required to post an audio tweet." });
-      }
-      
-      const now = new Date();
-      const istTime = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
-      const hours = istTime.getUTCHours();
-      if (hours < 14 || hours >= 19) {
-        return res.status(403).send({ error: "Audio tweets can only be posted between 2:00 PM and 7:00 PM IST." });
-      }
-
-      const sizeInBytes = req.body.audio.length * (3 / 4);
-      if (sizeInBytes > 100 * 1024 * 1024) {
-        return res.status(400).send({ error: "Audio file size exceeds 100 MB limit." });
-      }
-
-      if (req.body.audioDuration && req.body.audioDuration > 300) {
-        return res.status(400).send({ error: "Audio duration exceeds 5 minutes limit." });
-      }
-      
-      // Clear OTP after successful validation
-      user.audioOtp = null;
-      user.audioOtpExpiresAt = null;
-      await user.save();
-    }
-
-    const planLimit = PLANS[user.plan]?.limit ?? 1;
-    if (planLimit !== Infinity && user.tweetCount >= planLimit) {
-      return res.status(403).send({
-        error: `Tweet limit reached for your ${user.plan} plan. Please upgrade to post more.`,
-        limitReached: true,
-        plan: user.plan,
-      });
-    }
-
-    const tweet = new Tweet(req.body);
-    await tweet.save();
-
-    // Increment tweet count
-    user.tweetCount = (user.tweetCount || 0) + 1;
-    await user.save();
-
-    return res.status(201).send(tweet);
-  } catch (error) {
-    return res.status(400).send({ error: error.message });
-  }
+app.post("/post", boundary("POST /post", securityDependencies), async (req, res) => {
+  res.status(201).json(await createPost(req.principal._id,req.body));
 });
 
 // Get all tweets
-app.get("/post", async (req, res) => {
+app.get("/post", boundary("GET /post", securityDependencies), async (req,res)=>{
+  const limit=Number(req.query.limit||50);
+  const rows=await Tweet.find({...cursorFilter(req.query.cursor,"timestamp")}).sort({timestamp:-1,_id:-1}).limit(limit+1).populate("author",PUBLIC_USER_FIELDS);
+  const result=pageResult(rows,limit,"timestamp");
+  res.set({"X-Has-More":String(result.hasMore),"X-Next-Cursor":result.nextCursor||""}).json(result.items);
+});
+
+// Like / Unlike tweet (toggle)
+app.post("/like/:tweetid",boundary("POST /like/:tweetid",securityDependencies),async(req,res)=>{
+  res.json(await toggleReaction(req.params.tweetid,req.principal._id,"like"));
+});
+
+// Retweet / Unretweet (toggle)
+app.post("/retweet/:tweetid",boundary("POST /retweet/:tweetid",securityDependencies),async(req,res)=>{
+  res.json(await toggleReaction(req.params.tweetid,req.principal._id,"retweet"));
+});
+
+// ─── Additional Routes ────────────────────────────────────────────────────────
+
+// Get single tweet by ID
+app.get("/post/:id", boundary("GET /post/:id", securityDependencies), async (req, res) => {
   try {
-    const tweet = await Tweet.find().sort({ timestamp: -1 }).populate("author");
+    const tweet = await Tweet.findById(req.params.id).populate("author", PUBLIC_USER_FIELDS);
+    if (!tweet) return res.status(404).send({ error: "Tweet not found" });
     return res.status(200).send(tweet);
   } catch (error) {
-    return res.status(400).send({ error: error.message });
+    return res.status(400).send({ error: "Request could not be completed" });
   }
 });
 
-// Like tweet
-app.post("/like/:tweetid", async (req, res) => {
+// Delete tweet (only author can delete)
+app.delete("/post/:id", boundary("DELETE /post/:id", securityDependencies), async (req, res) => {
+  res.json(await deletePost(req.principal._id,req.params.id));
+});
+
+// Get tweet feed with pagination (for-you: all, following: filtered)
+app.get("/feed", boundary("GET /feed", securityDependencies), async (req,res)=>{
+  const limit=Number(req.query.limit||20);
+  const query={parentId:null,deletedAt:null,...cursorFilter(req.query.cursor,"timestamp")};
+  if(req.query.type==="following")query.author={$in:[...req.principal.following,req.principal._id]};
+  const rows=await Tweet.find(query).sort({timestamp:-1,_id:-1}).skip(req.query.cursor?0:(Number(req.query.page||1)-1)*limit).limit(limit+1).populate("author",PUBLIC_USER_FIELDS);
+  const result=pageResult(rows,limit);
+  res.json({tweets:result.items,hasMore:result.hasMore,nextCursor:result.nextCursor,page:Number(req.query.page||1)});
+});
+
+// Create a reply to a tweet
+app.post("/post/:id/reply", boundary("POST /post/:id/reply", securityDependencies), async (req, res) => {
+  res.status(201).json(await createPost(req.principal._id,req.body,req.params.id));
+});
+
+// Get replies for a tweet
+app.get("/post/:id/replies", boundary("GET /post/:id/replies", securityDependencies), async (req,res)=>{
+  const limit=Number(req.query.limit||50);
+  const rows=await Tweet.find({parentId:req.params.id,...cursorFilter(req.query.cursor,"timestamp",false)}).sort({timestamp:1,_id:1}).limit(limit+1).populate("author",PUBLIC_USER_FIELDS);
+  const result=pageResult(rows,limit,"timestamp");
+  res.set({"X-Has-More":String(result.hasMore),"X-Next-Cursor":result.nextCursor||""}).json(result.items);
+});
+
+// Get user by username
+app.get("/users/:username", boundary("GET /users/:username", securityDependencies), async (req, res) => {
   try {
-    const { userId } = req.body;
-    const tweet = await Tweet.findById(req.params.tweetid);
-    if (!tweet.likedBy.includes(userId)) {
-      tweet.likes += 1;
-      tweet.likedBy.push(userId);
-      await tweet.save();
-    }
-    res.send(tweet);
+    const user = await User.findOne({ username: req.params.username })
+      .select(PUBLIC_USER_FIELDS);
+    if (!user) return res.status(404).send({ error: "User not found" });
+    return res.status(200).send(user);
   } catch (error) {
-    return res.status(400).send({ error: error.message });
+    return res.status(400).send({ error: "Request could not be completed" });
   }
 });
 
-// Retweet
-app.post("/retweet/:tweetid", async (req, res) => {
+// Get tweets by user
+app.get("/users/:username/posts", boundary("GET /users/:username/posts", securityDependencies), async (req,res)=>{
+  const user=await User.findOne({username:new RegExp("^"+req.params.username.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"$","i")});
+  if(!user)fail(404,"NOT_FOUND","Account not found");
+  const limit=Number(req.query.limit||50);
+  const rows=await Tweet.find({author:user._id,parentId:null,...cursorFilter(req.query.cursor,"timestamp")}).sort({timestamp:-1,_id:-1}).limit(limit+1).populate("author",PUBLIC_USER_FIELDS);
+  const result=pageResult(rows,limit,"timestamp");
+  res.set({"X-Has-More":String(result.hasMore),"X-Next-Cursor":result.nextCursor||""}).json(result.items);
+});
+
+async function listProfileUsers(req, res, field) {
+  const profile=await User.findOne({username:new RegExp("^"+req.params.username.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"$","i")}).select(field);
+  if(!profile)fail(404,"NOT_FOUND","Account not found");
+  const limit=Number(req.query.limit||50);
+  const rows=await User.find({_id:{$in:profile[field]},...cursorFilter(req.query.cursor,"joinedDate")}).select(PUBLIC_USER_FIELDS).sort({joinedDate:-1,_id:-1}).limit(limit+1);
+  const result=pageResult(rows,limit,"joinedDate");
+  res.json({items:result.items,hasMore:result.hasMore,nextCursor:result.nextCursor});
+}
+app.get("/users/:username/followers",boundary("GET /users/:username/followers",securityDependencies),(req,res)=>listProfileUsers(req,res,"followers"));
+app.get("/users/:username/following",boundary("GET /users/:username/following",securityDependencies),(req,res)=>listProfileUsers(req,res,"following"));
+app.get("/users/:username/replies",boundary("GET /users/:username/replies",securityDependencies),async(req,res)=>{
+  const profile=await User.findOne({username:new RegExp("^"+req.params.username.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"$","i")}).select("_id");
+  if(!profile)fail(404,"NOT_FOUND","Account not found");
+  const limit=Number(req.query.limit||50);
+  const rows=await Tweet.find({author:profile._id,parentId:{$ne:null},deletedAt:null,...cursorFilter(req.query.cursor,"timestamp")}).sort({timestamp:-1,_id:-1}).limit(limit+1).populate("author",PUBLIC_USER_FIELDS);
+  const result=pageResult(rows,limit,"timestamp");
+  res.json({items:result.items,hasMore:result.hasMore,nextCursor:result.nextCursor});
+});
+
+// Follow a user
+app.post("/follow/:id", boundary("POST /follow/:id", securityDependencies), async (req, res) => {
+  res.json(await follow(req.principal._id,req.params.id));
+});
+
+// Unfollow a user
+app.delete("/follow/:id", boundary("DELETE /follow/:id", securityDependencies), async (req, res) => {
+  res.json(await follow(req.principal._id,req.params.id,true));
+});
+
+app.get("/notifications",boundary("GET /notifications",securityDependencies),async(req,res)=>{
+  const limit=Number(req.query.limit||50);
+  const query={recipient:req.principal._id,...(req.query.type==="mentions"?{type:"mention"}:{}),...cursorFilter(req.query.cursor,"createdAt")};
+  const [rows,unreadCount]=await Promise.all([
+    Notification.find(query).sort({createdAt:-1,_id:-1}).limit(limit+1).populate("actor",PUBLIC_USER_FIELDS).populate({path:"post",select:"_id content timestamp deletedAt author",populate:{path:"author",select:PUBLIC_USER_FIELDS}}),
+    Notification.countDocuments({recipient:req.principal._id,readAt:null,...(req.query.type==="mentions"?{type:"mention"}:{})}),
+  ]);
+  const result=pageResult(rows,limit,"createdAt");
+  res.json({...result,unreadCount});
+});
+app.patch("/notifications/:id/read",boundary("PATCH /notifications/:id/read",securityDependencies),async(req,res)=>{
+  const notification=await markRead(req.principal._id,req.params.id);
+  res.json({notification});
+});
+app.patch("/notifications/read",boundary("PATCH /notifications/read",securityDependencies),async(req,res)=>{
+  const result=await Notification.updateMany({recipient:req.principal._id,readAt:null},{$set:{readAt:new Date()}});
+  res.json({success:true,updated:result.modifiedCount});
+});
+
+// Bookmark / Unbookmark tweet (toggle)
+app.post("/bookmark/:tweetid",boundary("POST /bookmark/:tweetid",securityDependencies),async(req,res)=>{
+  res.json(await toggleBookmark(req.params.tweetid,req.principal._id));
+});
+
+// Idempotent bookmark semantics for retry-safe frontend actions.
+app.put("/bookmarks/:id",boundary("PUT /bookmarks/:id",securityDependencies),async(req,res)=>{
+  const post=await Tweet.findOne({_id:req.params.id,deletedAt:null});
+  if(!post)return res.status(404).json({error:"Post not found"});
+  const updated=await User.findOneAndUpdate({_id:req.principal._id},{$addToSet:{bookmarks:post._id}},{new:true});
+  res.json({success:true,bookmarked:true,bookmarks:updated.bookmarks});
+});
+app.delete("/bookmarks/:id",boundary("DELETE /bookmarks/:id",securityDependencies),async(req,res)=>{
+  await User.updateOne({_id:req.principal._id},{$pull:{bookmarks:req.params.id}});
+  res.json({success:true,bookmarked:false});
+});
+app.delete("/bookmarks",boundary("DELETE /bookmarks",securityDependencies),async(req,res)=>{
+  await User.updateOne({_id:req.principal._id},{$set:{bookmarks:[]}});
+  res.json({success:true,cleared:true});
+});
+
+// Get user's bookmarks
+app.get("/bookmarks/:userId", boundary("GET /bookmarks/:userId", securityDependencies), async (req,res)=>{
+  const limit=Number(req.query.limit||50);
+  const rows=await Tweet.find({_id:{$in:req.principal.bookmarks},deletedAt:null,...cursorFilter(req.query.cursor,"timestamp")}).sort({timestamp:-1,_id:-1}).limit(limit+1).populate("author",PUBLIC_USER_FIELDS);
+  const result=pageResult(rows,limit,"timestamp");
+  res.set({"X-Has-More":String(result.hasMore),"X-Next-Cursor":result.nextCursor||""}).json(result.items);
+});
+
+// Search (users and tweets)
+app.get("/search", boundary("GET /search", securityDependencies), async (req, res) => {
+  const q=(req.query.q||"").trim();
+  if(!q)return res.json({users:[],tweets:[]});
+  const regex=literalSearch(q);
+  const [users,tweets]=await Promise.all([
+    User.find({$or:[{username:regex},{displayName:regex}]}).select(PUBLIC_USER_FIELDS).sort({username:1,_id:1}).limit(10).maxTimeMS(2000),
+    Tweet.find({content:regex,parentId:null,deletedAt:null}).sort({timestamp:-1,_id:-1}).limit(20).maxTimeMS(2000).populate("author",PUBLIC_USER_FIELDS)
+  ]);
+  res.json({users,tweets});
+});
+
+app.get("/trending",boundary("GET /trending",securityDependencies),async(_req,res)=>{
+  const recent=await Tweet.find({parentId:null,deletedAt:null,timestamp:{$gte:new Date(Date.now()-7*24*60*60*1000)}}).select("content").sort({timestamp:-1}).limit(500).lean();
+  const counts=new Map();
+  for(const post of recent)for(const match of String(post.content||"").matchAll(/(?:^|\s)#([\p{L}\p{N}_]{2,30})/gu)){
+    const tag=match[1].toLocaleLowerCase();counts.set(tag,(counts.get(tag)||0)+1);
+  }
+  res.json([...counts].map(([tag,count])=>({tag,count})).sort((a,b)=>b.count-a.count||a.tag.localeCompare(b.tag)).slice(0,10));
+});
+
+// Get suggested users (exclude current user, sorted by follower count)
+app.get("/suggested-users", boundary("GET /suggested-users", securityDependencies), async (req, res) => {
   try {
-    const { userId } = req.body;
-    const tweet = await Tweet.findById(req.params.tweetid);
-    if (!tweet.retweetedBy.includes(userId)) {
-      tweet.retweets += 1;
-      tweet.retweetedBy.push(userId);
-      await tweet.save();
+    const userId = req.principal ? String(req.principal._id) : undefined;
+    let excludeIds = [];
+    if (userId) {
+      const currentUser = await User.findById(userId).select("following");
+      if (currentUser) {
+        excludeIds = [...currentUser.following.map((id) => id.toString()), userId];
+      }
     }
-    res.send(tweet);
+
+    const users = await User.find({
+      _id: { $nin: excludeIds },
+    })
+      .select("username displayName avatar bio followers")
+      .limit(5);
+
+    return res.status(200).send(users);
   } catch (error) {
-    return res.status(400).send({ error: error.message });
+    return res.status(400).send({ error: "Request could not be completed" });
   }
 });
 
-// ─── Server ───────────────────────────────────────────────────────────────────
-const port = process.env.PORT || 5000;
-const url = process.env.MONOGDB_URL;
+// ─── DM Routes ───────────────────────────────────────────────────────────────
 
-mongoose
-  .connect(url)
-  .then(() => {
-    console.log("✅ Connected to MongoDB");
-    app.listen(port, () => {
-      console.log(`🚀 Server running on port ${port}`);
-    });
-  })
-  .catch((err) => {
-    console.error("❌ MongoDB connection error:", err.message);
+// GET /conversations/:userId — list all conversations for a user
+app.get("/conversations/:userId", boundary("GET /conversations/:userId", securityDependencies), async (req,res)=>{
+  const limit=Number(req.query.limit||50);
+  const rows=await Conversation.find({participants:req.principal._id,...cursorFilter(req.query.cursor,"lastMessageAt")}).populate("participants",PUBLIC_USER_FIELDS).populate("lastMessageSender",PUBLIC_USER_FIELDS).sort({lastMessageAt:-1,_id:-1}).limit(limit+1);
+  const result=pageResult(rows,limit,"lastMessageAt");
+  res.set({"X-Has-More":String(result.hasMore),"X-Next-Cursor":result.nextCursor||""}).json(result.items);
+});
+
+// POST /conversations — find existing or create new conversation
+app.post("/conversations", boundary("POST /conversations", securityDependencies), async (req, res) => {
+  const sender=req.principal._id,receiver=req.body.receiverId;
+  const key=pairKey([sender,receiver]);
+  if(!await User.exists({_id:receiver}))fail(404,"NOT_FOUND","Recipient not found");
+  let conversation=await Conversation.findOne({pairKey:key});
+  if(!conversation) {
+    const legacy=await Conversation.findOne({participants:{$all:[sender,receiver],$size:2}});
+    if(legacy)fail(409,"CONVERSATION_RECONCILIATION","This conversation needs migration before messaging");
+    try {conversation=await Conversation.findOneAndUpdate({pairKey:key},{$setOnInsert:{pairKey:key,participants:[sender,receiver].map(String).sort()}},{upsert:true,new:true,runValidators:true});}
+    catch(error){if(error.code!==11000)throw error;conversation=await Conversation.findOne({pairKey:key});}
+  }
+  res.json(await conversation.populate("participants",PUBLIC_USER_FIELDS));
+});
+
+// GET /conversations/:id/messages — get messages in a conversation
+app.get("/conversations/:id/messages", boundary("GET /conversations/:id/messages", securityDependencies), async (req, res) => {
+  const limit=Number(req.query.limit||50);
+  const query={conversationId:req.params.id,...cursorFilter(req.query.cursor,"createdAt")};
+  if(req.query.before&&!req.query.cursor)query.createdAt={$lt:new Date(req.query.before)};
+  const rows=await Message.find(query).populate("sender",PUBLIC_USER_FIELDS).sort({createdAt:-1,_id:-1}).limit(limit+1);
+  const result=pageResult(rows,limit,"createdAt",true);
+  res.json({messages:result.items,hasMore:result.hasMore,nextCursor:result.nextCursor});
+});
+
+// POST /conversations/:id/messages — send a message
+app.post("/conversations/:id/messages", boundary("POST /conversations/:id/messages", securityDependencies), async (req, res) => {
+  const message=await transaction(async session=>{
+    const conversation=await Conversation.findById(req.params.id).session(session);
+    if(!conversation||!conversation.participants.map(String).includes(String(req.principal._id)))fail(403,"FORBIDDEN","Conversation access denied");
+    const [created]=await Message.create([{conversationId:conversation._id,sender:req.principal._id,content:req.body.content.trim()}],{session});
+    await Conversation.updateOne({_id:conversation._id},{$set:{lastMessage:created.content.slice(0,100),lastMessageAt:created.createdAt,lastMessageSender:req.principal._id}},{session});
+    return created;
   });
+  res.status(201).json(await message.populate("sender",PUBLIC_USER_FIELDS));
+});
+
+// PATCH /conversations/:id/read — mark messages as read
+app.patch("/conversations/:id/read", boundary("PATCH /conversations/:id/read", securityDependencies), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+    await Message.updateMany(
+      { conversationId: id, sender: { $ne: userId }, read: false },
+      { $set: { read: true } }
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to mark as read" });
+  }
+});
+
+// GET /unread-count/:userId — total unread messages
+app.get("/unread-count/:userId", boundary("GET /unread-count/:userId", securityDependencies), async (req, res) => {
+  try {
+    const userId = String(req.principal._id);
+    const conversations = await Conversation.find({ participants: userId }, "_id");
+    const conversationIds = conversations.map((c) => c._id);
+    const count = await Message.countDocuments({
+      conversationId: { $in: conversationIds },
+      sender: { $ne: userId },
+      read: false,
+    });
+    res.json({ count });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to get unread count" });
+  }
+});
+
+
+// Bounded authenticated binary upload; no arbitrary remote URL fetch or client credentials.
+app.post("/media-upload",boundary("POST /media-upload",securityDependencies),express.raw({type:()=>true,limit:AUDIO_MAX}),async(req,res)=>{
+  await rateLimit(`upload:${req.principal._id}`,20);
+  res.status(201).json(await storeMedia(req.body,req.query.kind,req.principal._id));
+});
+app.get("/media/:id", async (req, res, next) => {
+  try {
+    const id = req.params.id;
+    if (!/^[a-f\d]{24}$/.test(id)) return res.status(404).json({ error: "Not found" });
+    const media = await Media.findById(id);
+    if (!media || !media.published) return res.status(404).json({ error: "Media unavailable" });
+    if (!/^[a-f0-9]{24}\.(jpg|wav|mp3)$/.test(media.filename)) return res.status(404).json({ error: "Media unavailable" });
+    // Allow cross-origin image loading from any allowed frontend origin
+    const origin = req.headers.origin;
+    if (origin && corsOrigins().has(origin)) res.set("Access-Control-Allow-Origin", origin);
+    res.set({
+      "Content-Type": media.mime,
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "default-src 'none'",
+      "Cache-Control": "public, max-age=31536000, immutable",
+    });
+    res.sendFile(path.join(mediaDirectory(), media.filename));
+  } catch (err) { next(err); }
+});
+
+registerTopicRoutes(app, key => boundary(key, securityDependencies));
+registerCircleRoutes(app, key => boundary(key, securityDependencies));
+app.use(errorHandler);
+export async function startServer() {
+  const config=validateConfiguration();
+  if(!admin.apps.length)throw new Error("Firebase Admin configuration is required");
+  await mongoose.connect(config.uri, { autoIndex: false });
+
+  // Backfill pairKey on any conversations missing it (one-time migration)
+  const { default: Conversation } = await import("./models/conversation.js");
+  const missing = await Conversation.find({ pairKey: { $exists: false }, $expr: { $eq: [{ $size: { $ifNull: ["$participants", []] } }, 2] } });
+  if (missing.length > 0) {
+    console.log(`🔧 Backfilling pairKey on ${missing.length} conversation(s)...`);
+    await Promise.all(missing.map(c => {
+      c.pairKey = [...c.participants].map(String).sort().join("_");
+      return c.save();
+    }));
+    console.log("✅ pairKey backfill complete");
+  }
+
+  await prepareIndexes(config.production);
+  const port = process.env.PORT || 5000;
+  return app.listen(port, () => {
+    const env = config.production ? "production" : "development";
+    const db = config.dbType || (config.production ? "Atlas (production)" : "local");
+    const services = [
+      process.env.RAZORPAY_KEY_ID ? "Razorpay ✓" : "Razorpay ✗",
+      (process.env.EMAIL_USER || process.env.APPS_SCRIPT_URL) ? "Email ✓" : "Email ✗",
+      process.env.MEDIA_PUBLIC_BASE_URL ? `Media → ${process.env.MEDIA_PUBLIC_BASE_URL}` : "Media (default)",
+    ].join(" | ");
+    console.log(`🚀 Twiller backend ready  port=${port}  env=${env}  db=${db}`);
+    console.log(`   Services: ${services}`);
+  });
+}
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  startServer().catch((err) => {
+    console.error("❌ Backend startup failed:", err?.message || err);
+    console.error(err?.stack || "");
+    process.exitCode = 1;
+  });
+}

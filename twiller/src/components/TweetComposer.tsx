@@ -1,71 +1,71 @@
 import { useAuth } from "@/context/AuthContext";
-import React, { useEffect, useState } from "react";
+import React, { useId, useRef, useState } from "react";
 import { Card, CardContent } from "./ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Textarea } from "./ui/textarea";
 import { Button } from "./ui/button";
 import { Image, Smile, Calendar, MapPin, BarChart3, Globe, Crown, Lock, Mic } from "lucide-react";
 import { Separator } from "./ui/separator";
-import axios from "axios";
 import axiosInstance from "@/lib/axiosInstance";
-
-const PLAN_LIMITS: Record<string, number> = {
-  free: 1,
-  bronze: 3,
-  silver: 5,
-  gold: Infinity,
-};
+import { mediaErrorMessage, uploadMedia } from "@/lib/media";
+import AccessibleDialog from "./ui/AccessibleDialog";
+import TopicSelector from "./TopicSelector";
+import type { Topic } from "@/lib/topics";
+import type { Circle } from "@/lib/circles";
+import CircleSelector from "./CircleSelector";
 
 const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
+  const inputId = useId();
+  const submitting = useRef(false);
   const [content, setContent] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [imageurl, setimageurl] = useState("");
-  const [planInfo, setPlanInfo] = useState<any>(null);
   const [limitError, setLimitError] = useState("");
-  const [audioData, setAudioData] = useState("");
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [audioUploadUrl, setAudioUploadUrl] = useState("");
+  const [audioPreview, setAudioPreview] = useState("");
   const [audioDuration, setAudioDuration] = useState(0);
   const [showAudioOtpModal, setShowAudioOtpModal] = useState(false);
   const [otpInput, setOtpInput] = useState("");
   const [audioOtp, setAudioOtp] = useState("");
+  const [selectedTopics, setSelectedTopics] = useState<Topic[]>([]);
+  const [selectedCircle, setSelectedCircle] = useState<Circle | null>(null);
   const maxLength = 200;
-
-  useEffect(() => {
-    if (user?.email) fetchPlanInfo();
-  }, [user]);
-
-  const fetchPlanInfo = async () => {
-    try {
-      const res = await axiosInstance.get(`/user-plan/${user!.email}`);
-      setPlanInfo(res.data);
-    } catch (err) {
-      console.error("Failed to fetch plan info:", err);
-    }
-  };
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
-    if (!user || !content.trim()) return;
+    if (!user || !content.trim() || submitting.current || isLoading) return;
     setLimitError("");
+    submitting.current = true;
     setIsLoading(true);
     try {
+      const uploadedAudio = audioFile && !audioUploadUrl ? await uploadMedia(audioFile, "audio") : null;
+      const verifiedAudioUrl = uploadedAudio?.url || audioUploadUrl;
+      if (uploadedAudio?.url) setAudioUploadUrl(uploadedAudio.url);
       const tweetdata = {
         author: user?._id,
         content,
         image: imageurl,
-        audio: audioData,
-        audioDuration,
+        audio: verifiedAudioUrl,
+        audioDuration: uploadedAudio?.duration || audioDuration,
         audioOtp,
+        topicIds: selectedTopics.map(topic => topic._id),
+        ...(selectedCircle ? { circleId: selectedCircle._id } : {}),
       };
       const res = await axiosInstance.post("/post", tweetdata);
       onTweetPosted(res.data);
       setContent("");
+      setSelectedTopics([]);
+      setSelectedCircle(null);
       setimageurl("");
-      setAudioData("");
+      if (audioPreview) URL.revokeObjectURL(audioPreview);
+      setAudioFile(null);
+      setAudioUploadUrl("");
+      setAudioPreview("");
       setAudioOtp("");
       setOtpInput("");
-      // Refresh plan info after posting
-      await fetchPlanInfo();
+      void refreshUser().catch(() => setLimitError("Post published. Usage details could not refresh yet."));
     } catch (error: any) {
       if (error.response?.data?.limitReached) {
         setLimitError(error.response.data.error);
@@ -74,6 +74,7 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
       }
     } finally {
       setIsLoading(false);
+      submitting.current = false;
     }
   };
 
@@ -83,25 +84,19 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
   if (!user) return null;
 
   const plan = user.plan || "free";
-  const tweetCount = planInfo?.tweetCount ?? user.tweetCount ?? 0;
-  const planLimit = planInfo?.planLimit === -1 ? Infinity : (planInfo?.planLimit ?? PLAN_LIMITS[plan] ?? 1);
+  const tweetCount = user.tweetCount ?? 0;
+  const planLimit = user.planLimit === -1 ? Infinity : (user.planLimit ?? 1);
   const isAtLimit = planLimit !== Infinity && tweetCount >= planLimit;
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     setIsLoading(true);
     const image = e.target.files[0];
-    const formdataimg = new FormData();
-    formdataimg.set("image", image);
     try {
-      const res = await axios.post(
-        "https://api.imgbb.com/1/upload?key=97f3fb960c3520d6a88d7e29679cf96f",
-        formdataimg
-      );
-      const url = res.data.data.display_url;
-      if (url) setimageurl(url);
-    } catch (error) {
-      console.log(error);
+      const uploaded = await uploadMedia(image, "image");
+      setimageurl(uploaded.url);
+    } catch (error: unknown) {
+      setLimitError(mediaErrorMessage(error, "Image upload failed. Please try again."));
     } finally {
       setIsLoading(false);
     }
@@ -111,39 +106,48 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     
-    if (file.size > 100 * 1024 * 1024) {
-      setLimitError("Audio file size exceeds 100 MB limit.");
+    if (file.size > 10 * 1024 * 1024) {
+      setLimitError("Audio file size exceeds 10 MB limit.");
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      const audioObj = new window.Audio(dataUrl);
+    const previewUrl = URL.createObjectURL(file);
+    if (audioPreview) URL.revokeObjectURL(audioPreview);
+    const audioObj = new window.Audio(previewUrl);
       audioObj.onloadedmetadata = async () => {
         if (audioObj.duration > 300) {
           setLimitError("Audio duration exceeds 5 minutes limit.");
+          URL.revokeObjectURL(previewUrl);
           return;
         }
         
         setIsLoading(true);
         try {
           await axiosInstance.post("/generate-audio-otp", { email: user?.email });
-          setAudioData(dataUrl);
+          setAudioFile(file);
+          setAudioPreview(previewUrl);
           setAudioDuration(audioObj.duration);
           setShowAudioOtpModal(true);
-        } catch (error: any) {
-          setLimitError(error.response?.data?.error || "Failed to send OTP for audio.");
+        } catch (error: unknown) {
+          URL.revokeObjectURL(previewUrl);
+          setLimitError(mediaErrorMessage(error, "Failed to send OTP for audio."));
         } finally {
           setIsLoading(false);
         }
       };
-    };
-    reader.readAsDataURL(file);
+      audioObj.onerror = () => { URL.revokeObjectURL(previewUrl); setLimitError("Choose a supported audio file."); };
+  };
+
+  const cancelAudioOtp = () => {
+    setShowAudioOtpModal(false);
+    if (audioPreview) URL.revokeObjectURL(audioPreview);
+    setAudioFile(null);
+    setAudioUploadUrl("");
+    setAudioPreview("");
   };
 
   return (
-    <Card className="bg-black border-gray-800 border-x-0 border-t-0 rounded-none">
+    <Card className="twiller-composer bg-black border-gray-800 border-x-0 border-t-0 rounded-none">
       <CardContent className="p-4">
         {/* Tweet limit indicator */}
         <div className="flex items-center justify-between mb-3 px-1">
@@ -165,7 +169,7 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
             <span className="text-xs text-gray-500">
               {planLimit === Infinity
                 ? "Unlimited tweets"
-                : `${tweetCount}/${planLimit} tweets used`}
+                : `${tweetCount}/${planLimit} posts used`}
             </span>
           </div>
           {isAtLimit && (
@@ -183,13 +187,13 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
           <div className="flex flex-col items-center py-6 px-4 text-center space-y-3 bg-gray-950 rounded-2xl border border-gray-800">
             <Lock className="h-8 w-8 text-gray-500" />
             <div>
-              <p className="text-white font-semibold">Tweet limit reached</p>
+              <p className="text-white font-semibold">Post limit reached</p>
               <p className="text-gray-400 text-sm mt-1">
                 {plan === "free"
-                  ? "Free plan allows 1 tweet/month."
+                  ? "Free plan allows 1 post or reply per calendar month."
                   : plan === "bronze"
-                  ? "Bronze plan allows 3 tweets/month."
-                  : "Silver plan allows 5 tweets/month."}
+                  ? "Bronze plan allows 3 posts or replies per 30-day period."
+                  : "Silver plan allows 5 posts or replies per 30-day period."}
                 {" "}Upgrade to post more.
               </p>
             </div>
@@ -201,75 +205,85 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
             </Button>
           </div>
         ) : (
-          <div className="flex space-x-4">
+          <div className="flex min-w-0 space-x-4">
             <Avatar className="h-12 w-12">
-              <AvatarImage src={user.avatar} alt={user.displayName || "User"} />
-              <AvatarFallback>{user.displayName ? user.displayName[0] : user.username ? user.username[0] : "U"}</AvatarFallback>
+              <AvatarImage src={user.avatar || undefined} alt="" />
+              <AvatarFallback aria-hidden="true">{user.displayName ? user.displayName[0] : user.username ? user.username[0] : "U"}</AvatarFallback>
             </Avatar>
 
-            <div className="flex-1">
-              <form onSubmit={handleSubmit}>
+            <div className="min-w-0 flex-1">
+              <form onSubmit={handleSubmit} aria-busy={isLoading}>
+                <label htmlFor={`${inputId}-content`} className="sr-only">Write a post</label>
                 <Textarea
-                  placeholder="What's happening?"
+                  id={`${inputId}-content`}
+                  aria-describedby={`${inputId}-counter`}
+                  placeholder="What's on your mind?"
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  className="bg-transparent border-none text-xl text-white placeholder-gray-500 resize-none min-h-[120px] focus-visible:ring-0 focus-visible:ring-offset-0"
+                  className="bg-transparent border-none text-base text-white placeholder-gray-500 resize-none min-h-[76px] focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
+                <span id={`${inputId}-counter`} className="sr-only">{characterCount} of {maxLength} characters used.</span>
+                <TopicSelector selected={selectedTopics} onChange={setSelectedTopics} disabled={isLoading} />
+                <CircleSelector selected={selectedCircle} onChange={setSelectedCircle} disabled={isLoading} />
 
                 {limitError && (
-                  <p className="text-red-400 text-sm mt-1 flex items-center gap-1">
+                  <p role="alert" className="text-red-400 text-sm mt-1 flex items-center gap-1">
                     <Lock className="h-3 w-3" /> {limitError}
                   </p>
                 )}
 
-                {audioData && (
+                {audioFile && (
                   <div className="mt-2 p-2 bg-gray-900 rounded-xl flex items-center justify-between border border-gray-800">
-                    <audio controls src={audioData} className="h-10 w-full max-w-xs" />
-                    <button type="button" onClick={() => { setAudioData(""); setAudioOtp(""); }} className="text-red-400 text-sm font-bold ml-4 hover:underline">Remove</button>
+                    <audio controls src={audioPreview} className="h-10 w-full max-w-xs" />
+                    <button type="button" onClick={() => { URL.revokeObjectURL(audioPreview); setAudioFile(null); setAudioUploadUrl(""); setAudioPreview(""); setAudioOtp(""); }} className="text-red-400 text-sm font-bold ml-4 hover:underline">Remove</button>
                   </div>
                 )}
 
-                <div className="flex items-center justify-between mt-4">
-                  <div className="flex items-center space-x-4 text-blue-400">
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-1 text-blue-400 sm:gap-4">
                     <label
-                      htmlFor="tweetImage"
-                      className="p-2 rounded-full hover:bg-blue-900/20 cursor-pointer"
+                      htmlFor={`${inputId}-image`}
+                      className="relative flex h-11 w-11 items-center justify-center rounded-full hover:bg-blue-900/20 focus-within:outline focus-within:outline-2 focus-within:outline-blue-500"
                     >
-                      <Image className="h-5 w-5" />
+                      <Image aria-hidden="true" className="h-5 w-5" />
+                      <span className="sr-only">Add an image</span>
                       <input
+                        aria-label="Add an image to your post"
                         type="file"
                         accept="image/*"
-                        id="tweetImage"
-                        className="hidden"
+                        id={`${inputId}-image`}
+                        className="sr-only"
                         onChange={handlePhotoUpload}
                         disabled={isLoading}
                       />
                     </label>
                     <label
-                      htmlFor="tweetAudio"
-                      className="p-2 rounded-full hover:bg-blue-900/20 cursor-pointer"
+                      htmlFor={`${inputId}-audio`}
+                      className="relative flex h-11 w-11 items-center justify-center rounded-full hover:bg-blue-900/20 focus-within:outline focus-within:outline-2 focus-within:outline-blue-500"
                     >
-                      <Mic className="h-5 w-5" />
+                      <Mic aria-hidden="true" className="h-5 w-5" />
+                      <span className="sr-only">Add audio</span>
                       <input
+                        aria-label="Add audio to your post"
                         type="file"
                         accept="audio/*"
-                        id="tweetAudio"
-                        className="hidden"
+                        id={`${inputId}-audio`}
+                        className="sr-only"
                         onChange={handleAudioUpload}
                         disabled={isLoading}
                       />
                     </label>
-                    <Button variant="ghost" size="sm" className="p-2 rounded-full hover:bg-blue-900/20">
-                      <BarChart3 className="h-5 w-5" />
+                    <Button type="button" disabled aria-label="Polls (unavailable)" title="Not available" variant="ghost" size="sm" className="h-11 w-11 rounded-full p-2 hover:bg-blue-900/20">
+                      <BarChart3 aria-hidden="true" className="h-5 w-5" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="p-2 rounded-full hover:bg-blue-900/20">
-                      <Smile className="h-5 w-5" />
+                    <Button type="button" disabled aria-label="Emoji picker (unavailable)" title="Not available" variant="ghost" size="sm" className="h-11 w-11 rounded-full p-2 hover:bg-blue-900/20">
+                      <Smile aria-hidden="true" className="h-5 w-5" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="p-2 rounded-full hover:bg-blue-900/20">
-                      <Calendar className="h-5 w-5" />
+                    <Button type="button" disabled aria-label="Schedule a post (unavailable)" title="Not available" variant="ghost" size="sm" className="h-11 w-11 rounded-full p-2 hover:bg-blue-900/20">
+                      <Calendar aria-hidden="true" className="h-5 w-5" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="p-2 rounded-full hover:bg-blue-900/20">
-                      <MapPin className="h-5 w-5" />
+                    <Button type="button" disabled aria-label="Add a location (unavailable)" title="Not available" variant="ghost" size="sm" className="h-11 w-11 rounded-full p-2 hover:bg-blue-900/20">
+                      <MapPin aria-hidden="true" className="h-5 w-5" />
                     </Button>
                   </div>
                   <div className="flex items-center space-x-4">
@@ -342,25 +356,31 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
         )}
       </CardContent>
 
-      {showAudioOtpModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 p-6 rounded-2xl w-full max-w-sm border border-gray-800 shadow-2xl">
-            <h3 className="text-white text-lg font-bold mb-2">Verify Audio Upload</h3>
-            <p className="text-gray-400 text-sm mb-4">An OTP was sent to your email to authorize this audio upload.</p>
-            <input 
+      <AccessibleDialog open={showAudioOtpModal} onClose={cancelAudioOtp} labelledBy="audio-otp-title" describedBy="audio-otp-help">
+          <div className="w-full max-w-sm rounded-2xl border border-gray-800 bg-gray-900 p-6 text-white shadow-2xl">
+            <h2 id="audio-otp-title" className="mb-2 text-lg font-bold">Verify Audio Upload</h2>
+            <p id="audio-otp-help" className="mb-4 text-sm text-gray-400">An OTP was sent to your email to authorize this audio upload.</p>
+            <label htmlFor="audio-upload-otp" className="sr-only">Enter the six-digit audio upload code</label>
+            <input
+              id="audio-upload-otp"
               type="text" 
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              required
+              maxLength={6}
+              aria-describedby="audio-otp-help"
               placeholder="Enter 6-digit OTP" 
               value={otpInput} 
               onChange={e => setOtpInput(e.target.value)} 
               className="w-full bg-gray-950 border border-gray-700 text-white p-3 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:outline-none" 
             />
             <div className="flex gap-3">
-              <Button onClick={() => { setShowAudioOtpModal(false); setAudioData(""); }} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white">Cancel</Button>
-              <Button onClick={() => { setAudioOtp(otpInput); setShowAudioOtpModal(false); }} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white">Confirm</Button>
+              <Button type="button" onClick={cancelAudioOtp} className="min-h-11 flex-1 bg-gray-800 hover:bg-gray-700 text-white">Cancel</Button>
+              <Button type="button" onClick={() => { setAudioOtp(otpInput); setShowAudioOtpModal(false); }} className="min-h-11 flex-1 bg-blue-600 hover:bg-blue-500 text-white">Confirm</Button>
             </div>
           </div>
-        </div>
-      )}
+      </AccessibleDialog>
     </Card>
   );
 };

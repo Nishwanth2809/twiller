@@ -1,6 +1,12 @@
+
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/context/AuthContext";
+import { ThemeProvider, themeBootstrapScript } from "@/context/ThemeContext";
+import CookieNotice from "@/components/CookieNotice";
+import BackToTop from "@/components/BackToTop";
+import Script from "next/script";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,10 +19,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'X Clone - Social Media Platform',
-  description: 'A modern Twitter clone built with Next.js ',
-   icons: {
-    icon:"/favicon.ico",
+  title: "Twiller — Conversations connect us",
+  description: "A space for conversations, connection, and discovery. Share posts and keep up with people you follow.",
+  icons: {
+    icon: "/icon.svg",
   },
 };
 
@@ -26,18 +32,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head><Script id="twiller-theme-init" strategy="beforeInteractive">{themeBootstrapScript}</Script></head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <div id="google_translate_element" style={{ display: 'none' }}></div>
-        <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
-        <script type="text/javascript" dangerouslySetInnerHTML={{ __html: `
-          function googleTranslateElementInit() {
-            new google.translate.TranslateElement({pageLanguage: 'en', autoDisplay: false}, 'google_translate_element');
-          }
-        `}} />
-        {children}
+        <ThemeProvider>
+          <AuthProvider>
+            {children}
+            <CookieNotice />
+            <BackToTop />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -1,0 +1,41 @@
+# Separate Blueprint for the staging branch. Configure secrets and the Preview
+# origin in Render before enabling a deployment. This file does not affect the
+# existing render.yaml service.
+services:
+  - type: web
+    name: twiller-staging-backend
+    runtime: node
+    plan: starter
+    branch: staging
+    autoDeployTrigger: off
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: node index.js
+    healthCheckPath: /
+    disk:
+      name: twiller-staging-media
+      mountPath: /var/data/media
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 24.19.0
+      - key: NODE_ENV
+        value: production
+      - key: TWILLER_DEPLOYMENT_STAGE
+        value: staging
+      - key: MEDIA_DIR
+        value: /var/data/media
+      - key: MONGODB_URI
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false
+      - key: FRONTEND_ORIGINS
+        sync: false
+      - key: MEDIA_PUBLIC_BASE_URL
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false

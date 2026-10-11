@@ -19,8 +19,15 @@ const SubscriptionSchema = mongoose.Schema({
     enum: ["created", "paid", "failed"],
     default: "created",
   },
+  currency: { type: String, enum: ["INR"], default: "INR" },
+  fulfillmentExpiresAt: { type: Date, default: null },
   paidAt: { type: Date, default: null },
   invoiceSentAt: { type: Date, default: null },
+  invoiceStatus: { type: String, enum: ["pending","sending","sent","failed"], default: "pending" },
+  invoiceAttemptAt: Date,
 });
+
+SubscriptionSchema.index({ razorpayOrderId: 1 }, { unique: true });
+SubscriptionSchema.index({ razorpayPaymentId: 1 }, { unique: true, partialFilterExpression: { razorpayPaymentId: { $type: "string" } } });
 
 export default mongoose.model("Subscription", SubscriptionSchema);
