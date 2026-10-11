@@ -23,6 +23,22 @@ test("staging backend accepts a separate Atlas database and matching Firebase pr
   assert.equal(validateConfiguration(staging).production, true);
 });
 
+test("staging accepts the existing real Firebase project only with explicit approval and matching Admin credentials", () => {
+  const existingProject = {
+    ...staging,
+    FIREBASE_PROJECT_ID: "twill-12669",
+    FIREBASE_SERVICE_ACCOUNT: JSON.stringify({ project_id: "twill-12669", client_email: "admin@twill-12669.iam.gserviceaccount.com", private_key: "test-only" }),
+  };
+  assert.throws(() => validateConfiguration(existingProject));
+  assert.throws(() => validateConfiguration({ ...existingProject, TWILLER_STAGING_ALLOW_EXISTING_FIREBASE: "TRUE" }));
+  assert.equal(validateConfiguration({ ...existingProject, TWILLER_STAGING_ALLOW_EXISTING_FIREBASE: "true" }).production, true);
+  assert.throws(() => validateConfiguration({ ...existingProject, TWILLER_STAGING_ALLOW_EXISTING_FIREBASE: "true", FIREBASE_SERVICE_ACCOUNT: staging.FIREBASE_SERVICE_ACCOUNT }));
+  assert.throws(() => validateConfiguration({ ...existingProject, TWILLER_STAGING_ALLOW_EXISTING_FIREBASE: "true", FIREBASE_SERVICE_ACCOUNT: undefined }));
+  assert.throws(() => validateConfiguration({ ...existingProject, TWILLER_STAGING_ALLOW_EXISTING_FIREBASE: "true", FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099" }));
+  assert.throws(() => validateConfiguration({ ...existingProject, TWILLER_STAGING_ALLOW_EXISTING_FIREBASE: "true", NODE_ENV: "development" }));
+  assert.throws(() => validateConfiguration({ ...existingProject, TWILLER_STAGING_ALLOW_EXISTING_FIREBASE: "true", MONGODB_URI: "mongodb://127.0.0.1:27017/twiller_staging" }));
+});
+
 test("staging backend fails closed on live database, Firebase, emulator, or missing credentials", () => {
   const bad = [
     { MONGODB_URI: "mongodb+srv://example:example@cluster.example.mongodb.net/production" },
@@ -36,12 +52,14 @@ test("staging backend fails closed on live database, Firebase, emulator, or miss
     { FRONTEND_ORIGINS: "https://twiller-ruby.vercel.app" },
     { MEDIA_PUBLIC_BASE_URL: "http://localhost:5000" },
     { NODE_ENV: "development" },
+    { TWILLER_LOCAL_AUTH_EMULATOR: "true" },
+    { FIREBASE_AUTH_EMULATOR_HOST: "127.0.0.1:9099" },
     { MONOGDB_URL: "mongodb+srv://example:example@cluster.example.mongodb.net/production" },
   ];
   for (const change of bad) assert.throws(() => validateConfiguration({ ...staging, ...change }));
 });
 
-test("Vercel Preview Firebase config requires an explicit independent real project", () => {
+test("Vercel Preview Firebase config requires explicit real values and opt-in for the existing project", () => {
   const require = createRequire(new URL("../../twiller/package.json", import.meta.url));
   const ts = require("typescript");
   const source = readFileSync(new URL("../../twiller/src/lib/firebase-config.ts", import.meta.url), "utf8");
@@ -60,6 +78,12 @@ test("Vercel Preview Firebase config requires an explicit independent real proje
   assert.throws(() => firebaseWebConfig("staging", { ...values, projectId: "twill-12669" }, live, "preview"));
   assert.throws(() => firebaseWebConfig("staging", { ...values, appId: undefined }, live, "preview"));
   assert.throws(() => firebaseWebConfig("staging", { ...values, authDomain: "twill-12669.firebaseapp.com" }, live, "preview"));
+  const existingWeb = { ...values, projectId: live.projectId, authDomain: live.authDomain };
+  assert.throws(() => firebaseWebConfig("staging", existingWeb, live, "preview"));
+  assert.equal(firebaseWebConfig("staging", existingWeb, live, "preview", true).projectId, live.projectId);
+  assert.throws(() => firebaseWebConfig("staging", { ...existingWeb, appId: undefined }, live, "preview", true));
+  assert.throws(() => firebaseWebConfig("staging", { ...existingWeb, authDomain: values.authDomain }, live, "preview", true));
+  assert.throws(() => firebaseWebConfig("staging", { ...values, projectId: "demo-twiller-local", authDomain: "demo-twiller-local.firebaseapp.com" }, live, "preview", true));
   assert.equal(firebaseWebConfig(undefined, {}, live, undefined).projectId, "twill-12669");
 });
 

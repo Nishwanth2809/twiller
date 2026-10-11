@@ -39,7 +39,7 @@ const firebaseConfig = {
     messagingSenderId: "804498612401",
     appId: "1:804498612401:web:8a63d6f079d43414a1c290",
     measurementId: "G-HZNR2GYBYB",
-  }, process.env.NEXT_PUBLIC_VERCEL_ENV),
+  }, process.env.NEXT_PUBLIC_VERCEL_ENV, process.env.NEXT_PUBLIC_TWILLER_STAGING_ALLOW_EXISTING_FIREBASE === "true"),
   ...(useAuthEmulator ? { projectId: emulatorProjectId } : {}),
 };
 

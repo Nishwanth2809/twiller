@@ -24,10 +24,12 @@ export function validateConfiguration(env=process.env) {
   if(!uri||!/^mongodb(?:\+srv)?:\/\//.test(uri))throw Error("MONGODB_URI required (MONOGDB_URL is supported legacy alias)");
   if(env.TWILLER_DEPLOYMENT_STAGE==="staging") {
     if(!production)throw Error("Staging requires NODE_ENV=production");
+    if(env.TWILLER_LOCAL_AUTH_EMULATOR==="true"||env.FIREBASE_AUTH_EMULATOR_HOST)throw Error("Staging cannot use Firebase Auth Emulator");
     if(env.MONOGDB_URL)throw Error("Staging requires MONGODB_URI, not the legacy alias");
     const parsed=new URL(uri), database=parsed.pathname.replace(/^\//,"");
     if(!uri.startsWith("mongodb+srv://")||!parsed.hostname.endsWith(".mongodb.net")||database!=="twiller_staging")throw Error("Staging requires a separate Atlas twiller_staging database");
-    if(!env.FIREBASE_PROJECT_ID||env.FIREBASE_PROJECT_ID==="twill-12669"||env.FIREBASE_PROJECT_ID.startsWith("demo-"))throw Error("Staging requires a separate real Firebase project");
+    if(!env.FIREBASE_PROJECT_ID||env.FIREBASE_PROJECT_ID.startsWith("demo-")||
+      (env.FIREBASE_PROJECT_ID==="twill-12669"&&env.TWILLER_STAGING_ALLOW_EXISTING_FIREBASE!=="true"))throw Error("Staging requires a real Firebase project; existing project use requires explicit approval");
     if(!env.FIREBASE_SERVICE_ACCOUNT)throw Error("Staging Firebase Admin service account is required");
     let account;
     try { account=JSON.parse(env.FIREBASE_SERVICE_ACCOUNT); } catch { throw Error("Staging Firebase service account JSON is invalid"); }
