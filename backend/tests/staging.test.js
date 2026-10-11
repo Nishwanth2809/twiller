@@ -81,10 +81,40 @@ test("Vercel Preview Firebase config requires explicit real values and opt-in fo
   const existingWeb = { ...values, projectId: live.projectId, authDomain: live.authDomain };
   assert.throws(() => firebaseWebConfig("staging", existingWeb, live, "preview"));
   assert.equal(firebaseWebConfig("staging", existingWeb, live, "preview", true).projectId, live.projectId);
+  const proxiedWeb = { ...existingWeb, authDomain: "twiller-git-staging-nishwanths-projects-3cb59668.vercel.app" };
+  assert.equal(firebaseWebConfig("staging", proxiedWeb, live, "preview", true).authDomain, proxiedWeb.authDomain);
+  assert.throws(() => firebaseWebConfig("staging", proxiedWeb, live, "preview"));
+  assert.throws(() => firebaseWebConfig("staging", { ...proxiedWeb, authDomain: "another-preview.vercel.app" }, live, "preview", true));
+  assert.throws(() => firebaseWebConfig("staging", { ...values, authDomain: proxiedWeb.authDomain }, live, "preview", true));
   assert.throws(() => firebaseWebConfig("staging", { ...existingWeb, appId: undefined }, live, "preview", true));
   assert.throws(() => firebaseWebConfig("staging", { ...existingWeb, authDomain: values.authDomain }, live, "preview", true));
   assert.throws(() => firebaseWebConfig("staging", { ...values, projectId: "demo-twiller-local", authDomain: "demo-twiller-local.firebaseapp.com" }, live, "preview", true));
   assert.equal(firebaseWebConfig(undefined, {}, live, undefined).projectId, "twill-12669");
+});
+
+test("only staging proxies Firebase auth helper paths to the approved Firebase host", async () => {
+  const require = createRequire(new URL("../../twiller/package.json", import.meta.url));
+  const ts = require("typescript");
+  const source = readFileSync(new URL("../../twiller/next.config.ts", import.meta.url), "utf8");
+  const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
+  const module = { exports: {} };
+  const originalStage = process.env.NEXT_PUBLIC_TWILLER_DEPLOYMENT_STAGE;
+  const originalVercel = process.env.VERCEL_ENV;
+  try {
+    process.env.VERCEL_ENV = "preview";
+    process.env.NEXT_PUBLIC_TWILLER_DEPLOYMENT_STAGE = "staging";
+    vm.runInThisContext(`(function(module,exports,require,__dirname){${compiled}\n})`)(module, module.exports, require, fileURLToPath(new URL("../../twiller/", import.meta.url)));
+    assert.deepEqual(await module.exports.default.rewrites(), [
+      { source: "/__/auth/:path*", destination: "https://twill-12669.firebaseapp.com/__/auth/:path*" },
+    ]);
+    delete process.env.NEXT_PUBLIC_TWILLER_DEPLOYMENT_STAGE;
+    assert.deepEqual(await module.exports.default.rewrites(), []);
+  } finally {
+    if (originalStage === undefined) delete process.env.NEXT_PUBLIC_TWILLER_DEPLOYMENT_STAGE;
+    else process.env.NEXT_PUBLIC_TWILLER_DEPLOYMENT_STAGE = originalStage;
+    if (originalVercel === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = originalVercel;
+  }
 });
 
 test("staging index setup refuses to run without the explicit operator switches", () => {

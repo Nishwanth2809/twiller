@@ -822,6 +822,7 @@ test("Firebase Google redirect result authenticates through one backend session 
     assert.equal(harness.context.isLoading, false);
     assert.equal(harness.redirectCalls, 1);
     assert.deepEqual(harness.requests.map(request => request.path), ["/log-session", "/loggedinuser"]);
+    assert.equal(harness.requests.filter(request => request.path === "/register").length, 0);
     assert.equal(harness.requests[0].config.headers.Authorization, "Bearer emulator-id-token");
   } finally { harness.restoreGlobals(); }
 });
@@ -919,7 +920,33 @@ test("a stalled Firebase redirect lookup settles startup with a retryable error"
     await harness.flush();
     assert.equal(harness.context.status, "denied");
     assert.equal(harness.context.isLoading, false);
-    assert.match(harness.context.authError, /local emulator and try again/);
+    assert.match(harness.context.authError, /check your connection and try again/i);
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+    harness.restoreGlobals();
+  }
+});
+test("a late Google redirect result does not create a second backend session", async () => {
+  const pendingRedirect = deferred();
+  const user = googleRedirectUser();
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  let watchdog;
+  globalThis.setTimeout = callback => { watchdog = callback; return 123; };
+  globalThis.clearTimeout = () => {};
+  const harness = authProviderHarness({ redirectResult: pendingRedirect.promise, initialUser: user, autoStart: false });
+  try {
+    harness.start();
+    await new Promise(resolve => setImmediate(resolve));
+    watchdog();
+    await harness.flush();
+    await harness.flush();
+    pendingRedirect.resolve({ user });
+    await harness.flush();
+    assert.equal(harness.context.status, "authenticated");
+    assert.equal(harness.requests.filter(request => request.path === "/log-session").length, 1);
+    assert.equal(harness.requests.filter(request => request.path === "/register").length, 0);
   } finally {
     globalThis.setTimeout = originalSetTimeout;
     globalThis.clearTimeout = originalClearTimeout;

@@ -70,7 +70,7 @@ export const useAuth = () => {
 const message = (error: unknown) => axios.isAxiosError(error) ? error.response?.data?.error || "Unable to complete sign-in. Please retry" : error instanceof Error ? error.message : "Unable to complete sign-in";
 const redirectErrorMessage = (error: unknown) => {
   const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
-  if (code === "auth/network-request-failed" || code === "redirect-timeout") return "Google sign-in could not reach Firebase. Check the local emulator and try again.";
+  if (code === "auth/network-request-failed" || code === "redirect-timeout") return "Google sign-in could not connect. Please check your connection and try again.";
   if (code === "auth/operation-not-allowed") return "Google sign-in is not enabled for this Firebase project.";
   if (code === "auth/cancelled-popup-request" || code === "auth/user-cancelled") return "Google sign-in was canceled. Please try again.";
   return "Google sign-in could not be completed. Please try again.";

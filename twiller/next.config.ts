@@ -6,7 +6,11 @@ if (process.env.VERCEL_ENV === "preview" && process.env.NEXT_PUBLIC_TWILLER_DEPL
 }
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  async rewrites() {
+    return process.env.NEXT_PUBLIC_TWILLER_DEPLOYMENT_STAGE === "staging"
+      ? [{ source: "/__/auth/:path*", destination: "https://twill-12669.firebaseapp.com/__/auth/:path*" }]
+      : [];
+  },
   eslint: {
     ignoreDuringBuilds: true,
   },

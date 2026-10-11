@@ -8,6 +8,8 @@ export type FirebaseWebConfig = {
   measurementId?: string;
 };
 
+const approvedStagingAuthDomain = "twiller-git-staging-nishwanths-projects-3cb59668.vercel.app";
+
 // A Vercel staging build must supply every field explicitly. Reusing the live
 // Firebase project requires a separate, explicit staging deployment opt-in.
 export function firebaseWebConfig(stage: string | undefined, values: Partial<FirebaseWebConfig>, live: FirebaseWebConfig, vercelEnvironment?: string, allowExistingProject = false): FirebaseWebConfig {
@@ -18,7 +20,9 @@ export function firebaseWebConfig(stage: string | undefined, values: Partial<Fir
   if (!required || !values.projectId || (values.projectId === live.projectId && !allowExistingProject) || values.projectId.startsWith("demo-")) {
     throw new Error("Staging requires an explicit real Firebase Web app configuration");
   }
-  if (values.authDomain !== `${values.projectId}.firebaseapp.com` && values.authDomain !== `${values.projectId}.web.app`) {
+  const projectAuthDomain = values.authDomain === `${values.projectId}.firebaseapp.com` || values.authDomain === `${values.projectId}.web.app`;
+  const approvedSameOriginProxy = values.projectId === live.projectId && values.authDomain === approvedStagingAuthDomain;
+  if (!projectAuthDomain && !approvedSameOriginProxy) {
     throw new Error("Staging Firebase auth domain must belong to the staging project");
   }
   return values as FirebaseWebConfig;
