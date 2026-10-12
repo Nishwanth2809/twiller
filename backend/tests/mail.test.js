@@ -1,87 +1,127 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { deliverEmail, resendMailOptions, smtpMailOptions } from "../mail.js";
+import { deliverEmail } from "../mail.js";
 
-const message = { to: "fixture@example.invalid", subject: "Fixture", html: "private-otp-and-reset-link" };
-const key = "private-resend-api-key";
-const sender = "Twiller <noreply@example.invalid>";
+const message = { to: "fixture@example.invalid", subject: "Fixture", html: "private-proof-fixture" };
+const secret = "fixture-server-secret-32-characters-long";
 function setup(overrides = {}) {
-  const events = []; const sent = [];
+  const events = []; let smtpCalls = 0;
   return {
-    events, sent,
+    events, calls: () => smtpCalls,
     deps: {
-      resendApiKey: key, mailFrom: sender,
-      sendResend: async options => { sent.push(["resend", options]); return { data: { id: "provider-ack" }, error: null }; },
-      logger: { error: (...args) => events.push(args) },
+      appsScriptUrl: "https://provider.invalid/private-endpoint",
+      appsScriptSecret: secret,
+      fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ success: true }) }),
+      sendSmtp: async options => { smtpCalls++; assert.deepEqual(options, message); return { accepted: [message.to], rejected: [] }; },
+      logger: { error: (...args) => events.push(args) }, timeoutMs: 25,
       ...overrides,
     },
   };
 }
-
-test("Resend receives only bounded fields and server-controlled sender", async () => {
-  const fixture = setup();
-  assert.deepEqual(await deliverEmail({ ...message, from: "attacker@example.invalid", cc: "other@example.invalid" }, fixture.deps),
-    { provider: "resend", success: true });
-  assert.deepEqual(fixture.sent, [["resend", { ...message, from: sender }]]);
-  assert.deepEqual(fixture.events, []);
-  assert.deepEqual(resendMailOptions(message, sender), { ...message, from: sender });
-  assert.deepEqual(smtpMailOptions(message, "sender@example.invalid"),
-    { ...message, from: { name: "Twiller", address: "sender@example.invalid" } });
+test("Apps Script confirms success and skips fallback", async () => {
+  const fixture = setup({fetchImpl: async (url, options) => {
+    assert.equal(options.method, "POST"); assert.deepEqual(JSON.parse(options.body), {secret,mail:message});
+    assert.ok(options.signal instanceof AbortSignal);
+    return {ok:true,status:200,json:async()=>({success:true,internal:"never-returned"})};
+  }});
+  assert.deepEqual(await deliverEmail(message, fixture.deps), {provider:"apps_script",success:true});
+  assert.equal(fixture.calls(), 0); assert.deepEqual(fixture.events, []);
 });
 
-test("invalid recipients, content and sender fail before any provider request", async () => {
-  for (const invalid of [
-    { ...message, to: "first@example.invalid,second@example.invalid" },
-    { ...message, to: "x".repeat(255) + "@example.invalid" },
-    { ...message, subject: "x".repeat(201) },
-    { ...message, subject: "Header\nInjection" },
-    { ...message, html: "x".repeat(49153) },
+test("Apps Script receives only bounded allowlisted fields; caller From is ignored", async () => {
+  const fixture=setup({fetchImpl:async (_url,options)=>{
+    assert.deepEqual(JSON.parse(options.body),{secret,mail:message});
+    assert.equal(options.headers["Content-Type"],"application/json");
+    return {ok:true,status:200,json:async()=>({success:true})};
+  }});
+  assert.equal((await deliverEmail({...message,from:"attacker@example.invalid",cc:"other@example.invalid"},fixture.deps)).provider,"apps_script");
+  assert.equal(fixture.calls(),0);
+});
+
+test("Apps Script requires a server secret and never leaks it through failures", async () => {
+  const fixture=setup({appsScriptSecret:undefined,fetchImpl:async()=>{throw Error("unexpected request");}});
+  await assert.rejects(deliverEmail(message,fixture.deps),{code:"EMAIL_DELIVERY_FAILED"});
+  assert.equal(fixture.calls(),0);
+  assert.equal(JSON.stringify(fixture.events).includes(secret),false);
+  const rejected=setup({fetchImpl:async()=>{throw Error(secret);},sendSmtp:async()=>{throw Error(secret);}});
+  await assert.rejects(deliverEmail(message,rejected.deps),{code:"EMAIL_DELIVERY_FAILED",message:"Email delivery is unavailable"});
+  assert.equal(JSON.stringify(rejected.events).includes(secret),false);
+});
+
+test("invalid recipients and oversized content stop before either provider", async () => {
+  for(const invalid of [
+    {...message,to:"first@example.invalid,second@example.invalid"},
+    {...message,to:"x".repeat(255)+"@example.invalid"},
+    {...message,subject:"x".repeat(201)},
+    {...message,subject:"Header\nInjection"},
+    {...message,html:"x".repeat(49153)},
   ]) {
-    const fixture = setup();
-    await assert.rejects(deliverEmail(invalid, fixture.deps), { code: "EMAIL_DELIVERY_FAILED" });
-    assert.equal(fixture.sent.length, 0);
-  }
-  for (const badSender of [undefined, "", "a@example.invalid\nBcc: victim@example.invalid", "not-an-address"]) {
-    const fixture = setup({ mailFrom: badSender });
-    await assert.rejects(deliverEmail(message, fixture.deps), { code: "EMAIL_DELIVERY_FAILED" });
-    assert.equal(fixture.sent.length, 0);
+    const fixture=setup({fetchImpl:async()=>{throw Error("must not fetch");},sendSmtp:async()=>{throw Error("must not send");}});
+    await assert.rejects(deliverEmail(invalid,fixture.deps),{code:"EMAIL_DELIVERY_FAILED"});
+    assert.equal(fixture.calls(),0);
   }
 });
 
-test("Resend provider rejection is safe and optionally falls back to SMTP", async () => {
-  const fixture = setup({
-    sendResend: async () => ({ data: null, error: { name: "validation_error", message: `${key} ${message.html}`, statusCode: 422 } }),
+test("SMTP uses only the configured sender, never caller-supplied From", async () => {
+  const {smtpMailOptions}=await import("../mail.js");
+  assert.deepEqual(smtpMailOptions({...message,from:"attacker@example.invalid"},"sender@example.invalid"),{
+    ...message,from:{name:"Twiller",address:"sender@example.invalid"},
   });
-  await assert.rejects(deliverEmail(message, fixture.deps),
-    { code: "EMAIL_DELIVERY_FAILED", message: "Email delivery is unavailable" });
-  assert.deepEqual(fixture.events[0][1], { provider: "resend", reason: "PROVIDER_REJECTED", httpStatus: 422 });
-  const fallback = setup({
-    sendResend: async () => ({ data: null, error: { statusCode: 500 } }),
-    sendSmtp: async options => { assert.deepEqual(options, message); return { accepted: [message.to], rejected: [] }; },
-  });
-  assert.deepEqual(await deliverEmail(message, fallback.deps), { provider: "smtp", success: true });
+  assert.throws(()=>smtpMailOptions(message,undefined),{code:"EMAIL_DELIVERY_FAILED"});
 });
-
-test("Resend network failure, missing acknowledgement and all-provider failure never leak secrets", async () => {
-  const privateReset = "https://example.invalid/reset?oobCode=private-reset-link";
-  for (const sendResend of [
-    async () => { throw new Error(`${key} ${message.html} ${privateReset}`); },
-    async () => ({ data: {}, error: null }),
-  ]) {
-    const fixture = setup({ sendResend, sendSmtp: async () => { throw new Error(key); } });
-    await assert.rejects(deliverEmail(message, fixture.deps), { code: "EMAIL_DELIVERY_FAILED" });
-    const logs = JSON.stringify(fixture.events);
-    for (const secret of [key, message.to, message.html, privateReset]) assert.equal(logs.includes(secret), false);
-    assert.equal(fixture.events.length, 2);
+test("Apps Script HTTP failure uses successful SMTP fallback", async () => {
+  const fixture = setup({fetchImpl:async()=>({ok:false,status:500,json:async()=>({success:true})})});
+  assert.deepEqual(await deliverEmail(message,fixture.deps),{provider:"smtp",success:true});
+  assert.equal(fixture.calls(),1);
+  assert.deepEqual(fixture.events[0][1],{provider:"apps_script",reason:"HTTP_FAILURE",httpStatus:500});
+});
+test("Malformed and negative Apps Script acknowledgements cannot report success", async () => {
+  for(const body of [null,[],{},"success",{success:"true"},{success:false}]) {
+    const fixture=setup({fetchImpl:async()=>({ok:true,status:200,json:async()=>body})});
+    assert.equal((await deliverEmail(message,fixture.deps)).provider,"smtp"); assert.equal(fixture.calls(),1);
+  }
+  const fixture=setup({fetchImpl:async()=>({ok:true,status:200,json:async()=>{throw new SyntaxError("private body");}})});
+  assert.equal((await deliverEmail(message,fixture.deps)).provider,"smtp");
+});
+test("Timeout aborts both stalled request and stalled response body and falls back", async () => {
+  for(const bodyStalls of [false,true]) {
+    let signal;
+    const fixture=setup({timeoutMs:5,fetchImpl:async (_url,options)=>{
+      signal=options.signal;
+      if(bodyStalls)return {ok:true,status:200,json:()=>new Promise(()=>{})};
+      return new Promise(()=>{});
+    }});
+    assert.equal((await deliverEmail(message,fixture.deps)).provider,"smtp");
+    assert.equal(signal.aborted,true); assert.equal(fixture.calls(),1);
+    assert.equal(fixture.events[0][1].reason,"TIMEOUT");
   }
 });
-
-test("SMTP-only remains optional and requires provider acceptance", async () => {
-  const fixture = setup({ resendApiKey: undefined, sendSmtp: async () => ({ accepted: [message.to], rejected: [] }) });
-  assert.deepEqual(await deliverEmail(message, fixture.deps), { provider: "smtp", success: true });
-  for (const info of [undefined, {}, { accepted: [], rejected: [message.to] }, { accepted: [message.to], rejected: ["other@example.invalid"] }]) {
-    const rejected = setup({ resendApiKey: undefined, sendSmtp: async () => info });
-    await assert.rejects(deliverEmail(message, rejected.deps), { code: "EMAIL_DELIVERY_FAILED" });
+test("Network failure falls back without leaking provider details", async () => {
+  const fixture=setup({fetchImpl:async()=>{throw new Error("private-proof-fixture fixture@example.invalid secret-provider-url");}});
+  assert.equal((await deliverEmail(message,fixture.deps)).provider,"smtp");
+  assert.equal(fixture.events[0][1].reason,"NETWORK_FAILURE");
+  const logs=JSON.stringify(fixture.events);
+  for(const secret of [message.to,message.html,"secret-provider-url","private-endpoint"])assert.equal(logs.includes(secret),false);
+});
+test("SMTP-only configuration preserves provider fallback and requires acceptance", async () => {
+  const fixture=setup({appsScriptUrl:undefined,fetchImpl:async()=>{throw new Error("must not call");}});
+  assert.deepEqual(await deliverEmail(message,fixture.deps),{provider:"smtp",success:true}); assert.equal(fixture.calls(),1);
+  for(const info of [undefined,{}, {accepted:[],rejected:[message.to]}, {accepted:[message.to],rejected:["other@example.invalid"]}]) {
+    const rejected=setup({appsScriptUrl:undefined,sendSmtp:async()=>info});
+    await assert.rejects(deliverEmail(message,rejected.deps),{code:"EMAIL_DELIVERY_FAILED",message:"Email delivery is unavailable"});
   }
-  await assert.rejects(deliverEmail(message, setup({ resendApiKey: undefined }).deps), { code: "EMAIL_DELIVERY_FAILED" });
+});
+test("All providers failing yields a safe error and sanitized diagnostics", async () => {
+  const fixture=setup({fetchImpl:async()=>({ok:false,status:503}),sendSmtp:async()=>{throw new Error("private SMTP credentials");}});
+  await assert.rejects(deliverEmail(message,fixture.deps),{code:"EMAIL_DELIVERY_FAILED",message:"Email delivery is unavailable"});
+  assert.equal(fixture.events.length,2); assert.equal(JSON.stringify(fixture.events).includes("credentials"),false);
+});
+test("Apps Script alone succeeds, and its failure is safe without SMTP on Render Free", async () => {
+  const accepted=setup({sendSmtp:undefined});
+  assert.deepEqual(await deliverEmail(message,accepted.deps),{provider:"apps_script",success:true});
+  assert.equal(accepted.calls(),0);
+  const rejected=setup({sendSmtp:undefined,fetchImpl:async()=>({ok:true,status:200,json:async()=>({success:false})})});
+  await assert.rejects(deliverEmail(message,rejected.deps),{code:"EMAIL_DELIVERY_FAILED",message:"Email delivery is unavailable"});
+  assert.equal(rejected.events.length,1);
+  assert.deepEqual(rejected.events[0][1],{provider:"apps_script",reason:"PROVIDER_REJECTED",httpStatus:200});
 });

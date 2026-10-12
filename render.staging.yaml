@@ -35,7 +35,7 @@ services:
         sync: false
       - key: MEDIA_PUBLIC_BASE_URL
         sync: false
-      - key: EMAIL_USER
+      - key: APPS_SCRIPT_URL
         sync: false
-      - key: EMAIL_PASS
+      - key: APPS_SCRIPT_SECRET
         sync: false

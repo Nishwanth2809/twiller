@@ -47,22 +47,21 @@ after(async () => {
   server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
   for (const model of [User, Tweet, LoginSession, Throttle]) for (const [key, value] of Object.entries(original)) if (key.startsWith(`${model.modelName}:`)) model[key.split(":")[1]] = value;
 });
-test("invoice mail uses the shared provider without EMAIL_USER", async () => {
+test("invoice mail uses the shared Apps Script provider without EMAIL_USER", async () => {
   const priorSender=process.env.EMAIL_USER;
   const priorSend=mailDependencies.send;
   const captured=[];
   try {
     delete process.env.EMAIL_USER;
     mailDependencies.send=value=>deliverEmail(value,{
-      resendApiKey:"fixture-resend-key",
-      mailFrom:"Twiller <noreply@example.invalid>",
-      sendResend:async options=>{captured.push(options);return {data:{id:"invoice-ack"},error:null};},
+      appsScriptUrl:"https://provider.invalid/private",
+      appsScriptSecret:"fixture-server-secret-32-characters-long",
+      fetchImpl:async (_url,options)=>{captured.push(JSON.parse(options.body).mail);return {ok:true,status:200,json:async()=>({success:true})};},
       logger:{error(){}},
     });
     await sendInvoiceEmail("buyer@example.test","Fixture Buyer","bronze","pay_fixture",10000);
     assert.equal(captured.length,1);
-    assert.deepEqual(Object.keys(captured[0]).sort(),["from","html","subject","to"]);
-    assert.equal(captured[0].from,"Twiller <noreply@example.invalid>");
+    assert.deepEqual(Object.keys(captured[0]).sort(),["html","subject","to"]);
     assert.equal(captured[0].to,"buyer@example.test");
   } finally {
     if(priorSender===undefined)delete process.env.EMAIL_USER;
@@ -149,15 +148,15 @@ test("TW-004: recovery only requests a provider proof link; delivery/unknown acc
   assert.equal(JSON.stringify(users.get(id)), before);
 });
 
-test("TW-004: Resend failure maps fallback success and total failure to safe recovery responses", async () => {
+test("TW-004: Apps Script failure maps fallback success and total failure to safe recovery responses", async () => {
   const previous = mailDependencies.send;
   const profileBefore = JSON.stringify(users.get(id));
   try {
     for (const fallbackSucceeds of [true, false]) {
       mailDependencies.send = options => deliverEmail(options, {
-        resendApiKey: "fixture-resend-key",
-        mailFrom: "Twiller <noreply@example.invalid>",
-        sendResend: async () => ({data:null,error:{statusCode:500}}),
+        appsScriptUrl: "https://provider.invalid/private",
+        appsScriptSecret: "fixture-server-secret-32-characters-long",
+        fetchImpl: async () => ({ok:false,status:500}),
         sendSmtp: async () => {
           if (!fallbackSucceeds) throw new Error("private provider internals");
           return { accepted: [token.email], rejected: [] };
@@ -178,9 +177,9 @@ test("TW-007: actual delivery helper failure removes challenge and does not gran
   token.auth_time++;
   try {
     mailDependencies.send = options => deliverEmail(options, {
-      resendApiKey: "fixture-resend-key",
-      mailFrom: "Twiller <noreply@example.invalid>",
-      sendResend: async () => ({data:null,error:{statusCode:500}}),
+      appsScriptUrl: "https://provider.invalid/private",
+      appsScriptSecret: "fixture-server-secret-32-characters-long",
+      fetchImpl: async () => ({ok:true,status:200,json:async()=>({success:false})}),
       sendSmtp: async () => { throw new Error("private SMTP credentials"); },
       logger: { error() {} },
     });

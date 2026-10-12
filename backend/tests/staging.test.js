@@ -16,26 +16,24 @@ const staging = {
   FRONTEND_ORIGINS: "https://twiller-staging.example.test",
   MEDIA_PUBLIC_BASE_URL: "https://twiller-staging-api.example.test",
   MEDIA_DIR: "/var/data/media",
-  RESEND_API_KEY: "test-only-provider-key",
-  MAIL_FROM: "Twiller <noreply@example.invalid>",
+  APPS_SCRIPT_URL: "https://script.google.com/macros/s/test-deployment/exec",
+  APPS_SCRIPT_SECRET: "fixture-server-secret-32-characters-long",
 };
 
 test("staging backend accepts a separate Atlas database and matching Firebase project", () => {
   assert.equal(validateConfiguration(staging).production, true);
 });
 
-test("Resend requires a nonblank backend key and a valid sender; SMTP is optional", () => {
-  for(const RESEND_API_KEY of [undefined,"","  "," test-only-provider-key "]) {
-    const env = {...staging,RESEND_API_KEY};
-    assert.throws(()=>validateConfiguration(env),/RESEND_API_KEY|Staging requires Resend/);
-  }
-  for(const MAIL_FROM of [undefined,"","not-an-address","Twiller <noreply@example.invalid>\nBcc: victim@example.invalid"])
-    assert.throws(()=>validateConfiguration({...staging,MAIL_FROM}),/MAIL_FROM/);
+test("Apps Script requires HTTPS and a strong server-only secret", () => {
+  assert.throws(()=>validateConfiguration({...staging,APPS_SCRIPT_URL:"http://script.example.test/mail"}),/HTTPS/);
+  assert.throws(()=>validateConfiguration({...staging,APPS_SCRIPT_URL:"https://script.google.com/macros/s/test-deployment/exec?secret=bad"}),/query data/);
+  assert.throws(()=>validateConfiguration({...staging,APPS_SCRIPT_URL:"https://script.example.test/mail"}),/deployed Google/);
+  assert.throws(()=>validateConfiguration({...staging,APPS_SCRIPT_URL:"https://script.google.com/macros/s/test-deployment/dev"}),/deployed Google/);
+  for(const APPS_SCRIPT_SECRET of [undefined,""," ","short","x".repeat(257),"x".repeat(31)+" "])
+    assert.throws(()=>validateConfiguration({...staging,APPS_SCRIPT_SECRET}),/server-only secret/);
   assert.equal(validateConfiguration({...staging,EMAIL_USER:undefined,EMAIL_PASS:undefined}).production,true);
-  assert.throws(()=>validateConfiguration({...staging,RESEND_API_KEY:undefined,MAIL_FROM:undefined,EMAIL_USER:"sender@example.invalid",EMAIL_PASS:"fixture"}),/Staging requires Resend/);
-  assert.throws(()=>validateConfiguration({...staging,RESEND_API_KEY:undefined,MAIL_FROM:undefined}),/Staging requires Resend/);
-  const otherProduction = {...staging,TWILLER_DEPLOYMENT_STAGE:undefined,RESEND_API_KEY:undefined,MAIL_FROM:undefined,EMAIL_USER:"sender@example.invalid",EMAIL_PASS:"fixture"};
-  assert.equal(validateConfiguration(otherProduction).production,true);
+  assert.throws(()=>validateConfiguration({...staging,APPS_SCRIPT_URL:undefined,APPS_SCRIPT_SECRET:undefined,EMAIL_USER:"sender@example.invalid",EMAIL_PASS:"fixture"}),/Staging requires Apps Script/);
+  assert.throws(()=>validateConfiguration({...staging,APPS_SCRIPT_URL:undefined,APPS_SCRIPT_SECRET:"fixture-server-secret-32-characters-long"}),/secret requires its HTTPS URL/);
 });
 
 test("staging accepts the existing real Firebase project only with explicit approval and matching Admin credentials", () => {
