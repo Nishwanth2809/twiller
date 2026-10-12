@@ -1,6 +1,5 @@
-// Transport acknowledgement is not a guarantee of inbox delivery.
-// Never log recipients, message contents, provider URLs, or raw provider errors.
-const MAX_PAYLOAD_BYTES = 65536;
+// Provider acceptance is not proof of inbox delivery. Never log addresses,
+// message content, provider responses, or credentials.
 const MAX_HTML_BYTES = 49152;
 const recipientPattern = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
 
@@ -11,87 +10,67 @@ function deliveryFailure() {
 }
 
 export function mailFields(options) {
-  if(!options || typeof options!=="object" || Array.isArray(options) ||
-    typeof options.to!=="string" || options.to.length>254 || !recipientPattern.test(options.to) ||
-    typeof options.subject!=="string" || !options.subject.trim() || options.subject.length>200 || /[\r\n]/.test(options.subject) ||
-    typeof options.html!=="string" || !options.html.trim() || Buffer.byteLength(options.html,"utf8")>MAX_HTML_BYTES)
+  if (!options || typeof options !== "object" || Array.isArray(options) ||
+    typeof options.to !== "string" || options.to.length > 254 || !recipientPattern.test(options.to) ||
+    typeof options.subject !== "string" || !options.subject.trim() || options.subject.length > 200 || /[\r\n]/.test(options.subject) ||
+    typeof options.html !== "string" || !options.html.trim() || Buffer.byteLength(options.html, "utf8") > MAX_HTML_BYTES)
     throw deliveryFailure();
-  return {to:options.to,subject:options.subject,html:options.html};
+  return { to: options.to, subject: options.subject, html: options.html };
+}
+
+export function validMailFrom(sender) {
+  if (typeof sender !== "string" || sender !== sender.trim() || sender.length > 254 || /[\r\n]/.test(sender)) return false;
+  if (recipientPattern.test(sender)) return true;
+  const named = sender.match(/^([^<>]{1,80}) <([^<>]+)>$/);
+  return Boolean(named?.[1].trim() && recipientPattern.test(named[2]));
+}
+
+export function resendMailOptions(options, sender) {
+  if (!validMailFrom(sender)) throw deliveryFailure();
+  return { ...mailFields(options), from: sender };
 }
 
 export function smtpMailOptions(options, sender) {
-  if(typeof sender!=="string" || !recipientPattern.test(sender))throw deliveryFailure();
-  return {...mailFields(options),from:{name:"Twiller",address:sender}};
+  if (typeof sender !== "string" || !recipientPattern.test(sender)) throw deliveryFailure();
+  return { ...mailFields(options), from: { name: "Twiller", address: sender } };
 }
 
 export async function deliverEmail(mailOptions, {
-  appsScriptUrl,
-  appsScriptSecret,
+  resendApiKey,
+  mailFrom,
+  sendResend,
   sendSmtp,
-  fetchImpl = globalThis.fetch,
   logger = console,
-  timeoutMs = 10000,
 }) {
   const mail = mailFields(mailOptions);
   const diagnostic = (provider, reason, status) => logger.error("Email delivery attempt failed", {
-    provider, reason, ...(Number.isInteger(status) ? { httpStatus: status } : {}),
+    provider, reason, ...(Number.isInteger(status) && status >= 400 && status <= 599 ? { httpStatus: status } : {}),
   });
-  if (appsScriptUrl) {
-    if(typeof appsScriptSecret!=="string" || appsScriptSecret.length<32 || appsScriptSecret.length>256 || /\s/.test(appsScriptSecret))
-      throw deliveryFailure();
-    const body = JSON.stringify({secret:appsScriptSecret,mail});
-    if(Buffer.byteLength(body,"utf8")>MAX_PAYLOAD_BYTES)throw deliveryFailure();
-    const controller = new AbortController();
-    let timer;
-    let reason = "NETWORK_FAILURE";
-    let status;
+
+  if (resendApiKey) {
     try {
-      const timeout = new Promise((_, reject) => {
-        timer = setTimeout(() => {
-          reason = "TIMEOUT";
-          reject(new Error("Email provider timeout"));
-          controller.abort();
-        }, timeoutMs);
-      });
-      const attempt = (async () => {
-        const response = await fetchImpl(appsScriptUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body,
-          signal: controller.signal,
-        });
-        status = response.status;
-        if (!response.ok) {
-          reason = "HTTP_FAILURE";
-          throw new Error("Email provider HTTP failure");
-        }
-        reason = "INVALID_RESPONSE";
-        const result = await response.json();
-        // The Apps Script must acknowledge send completion with boolean success.
-        if (!result || typeof result !== "object" || Array.isArray(result) || result.success !== true) {
-          reason = result?.success === false ? "PROVIDER_REJECTED" : "INVALID_RESPONSE";
-          throw new Error("Email provider did not confirm delivery");
-        }
-        return { provider: "apps_script", success: true };
-      })();
-      return await Promise.race([attempt, timeout]);
+      const result = await sendResend(resendMailOptions(mail, mailFrom));
+      if (result?.error) {
+        diagnostic("resend", "PROVIDER_REJECTED", result.error.statusCode);
+      } else if (typeof result?.data?.id === "string" && result.data.id.length > 0) {
+        return { provider: "resend", success: true };
+      } else {
+        diagnostic("resend", "INVALID_RESPONSE");
+      }
     } catch {
-      controller.abort();
-      diagnostic("apps_script", reason, status);
-    } finally {
-      clearTimeout(timer);
+      diagnostic("resend", "NETWORK_FAILURE");
     }
   }
-  try {
-    const result = await sendSmtp(mail);
-    if (!Array.isArray(result?.accepted) || result.accepted.length === 0 || result.rejected?.length) {
+
+  if (typeof sendSmtp === "function") {
+    try {
+      const result = await sendSmtp(mail);
+      if (Array.isArray(result?.accepted) && result.accepted.length > 0 && !result.rejected?.length)
+        return { provider: "smtp", success: true };
       diagnostic("smtp", "NOT_ACCEPTED");
-      throw new Error("SMTP did not accept message");
+    } catch {
+      diagnostic("smtp", "DELIVERY_FAILURE");
     }
-    return { provider: "smtp", success: true };
-  } catch {
-    diagnostic("smtp", "DELIVERY_FAILURE");
-    // Routes map this to their existing safe error contracts.
-    throw deliveryFailure();
   }
+  throw deliveryFailure();
 }

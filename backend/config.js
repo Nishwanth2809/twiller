@@ -1,4 +1,5 @@
 import { fail } from "./security.js";
+import { validMailFrom } from "./mail.js";
 function origin(value) { const url=new URL(value); if(!["http:","https:"].includes(url.protocol)||url.origin!==value)throw Error("Origins must have no path");return value; }
 export function firebaseAuthEmulatorConfig(env=process.env) {
   const enabled=env.TWILLER_LOCAL_AUTH_EMULATOR==="true";
@@ -54,16 +55,14 @@ export function validateConfiguration(env=process.env) {
   }
   if(!!env.RAZORPAY_KEY_ID!==!!env.RAZORPAY_KEY_SECRET)throw Error("Configure both Razorpay variables or disable payments");
   if(!!env.EMAIL_USER!==!!env.EMAIL_PASS)throw Error("Configure both SMTP variables");
-  if(env.APPS_SCRIPT_URL) {
-    let url;
-    try { url=new URL(env.APPS_SCRIPT_URL); } catch { throw Error("Apps Script must use a valid HTTPS URL"); }
-    if(url.protocol!=="https:")throw Error("Apps Script must use HTTPS");
-    if(url.username||url.password||url.search||url.hash)throw Error("Apps Script URL must not contain credentials or query data");
-    if(url.hostname!=="script.google.com"||!/^\/macros\/s\/[^/]+\/exec$/.test(url.pathname))throw Error("Apps Script requires a deployed Google /exec URL");
-    if(typeof env.APPS_SCRIPT_SECRET!=="string"||env.APPS_SCRIPT_SECRET.length<32||env.APPS_SCRIPT_SECRET.length>256||/\s/.test(env.APPS_SCRIPT_SECRET))
-      throw Error("Apps Script requires a strong server-only secret");
+  if(env.RESEND_API_KEY!==undefined) {
+    if(typeof env.RESEND_API_KEY!=="string"||!env.RESEND_API_KEY.trim()||env.RESEND_API_KEY!==env.RESEND_API_KEY.trim())
+      throw Error("RESEND_API_KEY must be nonblank");
+    if(!validMailFrom(env.MAIL_FROM))throw Error("MAIL_FROM must be a valid server-controlled sender");
   }
-  if(env.NODE_ENV!=="test"&&!env.APPS_SCRIPT_URL&&!(env.EMAIL_USER&&env.EMAIL_PASS))throw Error("A confirmed mail transport is required for authentication");
+  if(env.TWILLER_DEPLOYMENT_STAGE==="staging"&&!env.RESEND_API_KEY)
+    throw Error("Staging requires Resend HTTPS mail");
+  if(env.NODE_ENV!=="test"&&!env.RESEND_API_KEY&&!(env.EMAIL_USER&&env.EMAIL_PASS))throw Error("A configured mail transport is required for authentication");
   const dbType=isAtlasUri?"Atlas (remote)":"local";
   return {uri, production, dbType};
 }

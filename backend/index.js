@@ -6,6 +6,7 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import dns from "dns";
 import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import admin from "firebase-admin";
 import { UAParser } from "ua-parser-js";
 import User from "./models/user.js";
@@ -114,12 +115,11 @@ const transporter = nodemailer.createTransport({
 
 async function sendTwillerEmail(mailOptions) {
   return deliverEmail(mailOptions, {
-    appsScriptUrl: process.env.APPS_SCRIPT_URL,
-    appsScriptSecret: process.env.APPS_SCRIPT_SECRET,
-    sendSmtp: options => {
-      if(!process.env.EMAIL_USER || !process.env.EMAIL_PASS)throw new Error("SMTP unavailable");
-      return transporter.sendMail(smtpMailOptions(options,process.env.EMAIL_USER));
-    },
+    resendApiKey: process.env.RESEND_API_KEY,
+    mailFrom: process.env.MAIL_FROM,
+    sendResend: process.env.RESEND_API_KEY ? options => new Resend(process.env.RESEND_API_KEY).emails.send(options) : undefined,
+    sendSmtp: process.env.EMAIL_USER && process.env.EMAIL_PASS ?
+      options => transporter.sendMail(smtpMailOptions(options,process.env.EMAIL_USER)) : undefined,
   });
 }
 
@@ -797,7 +797,7 @@ export async function startServer() {
     const db = config.dbType || (config.production ? "Atlas (production)" : "local");
     const services = [
       process.env.RAZORPAY_KEY_ID ? "Razorpay ✓" : "Razorpay ✗",
-      process.env.APPS_SCRIPT_URL ? "Mail: HTTPS configured (delivery unverified)" :
+      process.env.RESEND_API_KEY ? "Mail: Resend configured (delivery unverified)" :
         (process.env.EMAIL_USER && process.env.EMAIL_PASS) ? "Mail: SMTP configured (delivery unverified)" : "Mail: not configured",
       process.env.MEDIA_PUBLIC_BASE_URL ? `Media → ${process.env.MEDIA_PUBLIC_BASE_URL}` : "Media (default)",
     ].join(" | ");
