@@ -54,7 +54,15 @@ export function validateConfiguration(env=process.env) {
   }
   if(!!env.RAZORPAY_KEY_ID!==!!env.RAZORPAY_KEY_SECRET)throw Error("Configure both Razorpay variables or disable payments");
   if(!!env.EMAIL_USER!==!!env.EMAIL_PASS)throw Error("Configure both SMTP variables");
-  if(env.APPS_SCRIPT_URL&&new URL(env.APPS_SCRIPT_URL).protocol!=="https:")throw Error("Apps Script must use HTTPS");
+  if(env.APPS_SCRIPT_URL) {
+    let url;
+    try { url=new URL(env.APPS_SCRIPT_URL); } catch { throw Error("Apps Script must use a valid HTTPS URL"); }
+    if(url.protocol!=="https:")throw Error("Apps Script must use HTTPS");
+    if(url.username||url.password||url.search||url.hash)throw Error("Apps Script URL must not contain credentials or query data");
+    if(url.hostname!=="script.google.com"||!/^\/macros\/s\/[^/]+\/exec$/.test(url.pathname))throw Error("Apps Script requires a deployed Google /exec URL");
+    if(typeof env.APPS_SCRIPT_SECRET!=="string"||env.APPS_SCRIPT_SECRET.length<32||env.APPS_SCRIPT_SECRET.length>256||/\s/.test(env.APPS_SCRIPT_SECRET))
+      throw Error("Apps Script requires a strong server-only secret");
+  }
   if(env.NODE_ENV!=="test"&&!env.APPS_SCRIPT_URL&&!(env.EMAIL_USER&&env.EMAIL_PASS))throw Error("A confirmed mail transport is required for authentication");
   const dbType=isAtlasUri?"Atlas (remote)":"local";
   return {uri, production, dbType};

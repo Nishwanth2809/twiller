@@ -20,7 +20,7 @@ import { registerCircleRoutes } from "./circle-operations.js";
 import LoginSession from "./models/loginSession.js";
 import { boundary, errorHandler, fail, resolveUser, sessionId, otpHash, userView, PUBLIC_USER_FIELDS } from "./security.js";
 import { verifyPurchase } from "./payment.js";
-import { deliverEmail } from "./mail.js";
+import { deliverEmail, smtpMailOptions } from "./mail.js";
 import { quotaState, transaction } from "./quota.js";
 import { createPost, deletePost, follow } from "./post-operations.js";
 import { toggleReaction, toggleBookmark } from "./reactions.js";
@@ -115,7 +115,11 @@ const transporter = nodemailer.createTransport({
 async function sendTwillerEmail(mailOptions) {
   return deliverEmail(mailOptions, {
     appsScriptUrl: process.env.APPS_SCRIPT_URL,
-    sendSmtp: options => transporter.sendMail(options),
+    appsScriptSecret: process.env.APPS_SCRIPT_SECRET,
+    sendSmtp: options => {
+      if(!process.env.EMAIL_USER || !process.env.EMAIL_PASS)throw new Error("SMTP unavailable");
+      return transporter.sendMail(smtpMailOptions(options,process.env.EMAIL_USER));
+    },
   });
 }
 
@@ -143,7 +147,7 @@ function isPaymentWindowOpen() {
 }
 
 // ─── Invoice Email Helper ─────────────────────────────────────────────────────
-async function sendInvoiceEmail(email, displayName, plan, paymentId, amount) {
+export async function sendInvoiceEmail(email, displayName, plan, paymentId, amount) {
   const planConfig = PLANS[plan];
   const limitText = planConfig.limit === Infinity ? "Unlimited" : `${planConfig.limit} tweets/month`;
   const amountInRupees = (amount / 100).toFixed(2);
@@ -203,7 +207,6 @@ async function sendInvoiceEmail(email, displayName, plan, paymentId, amount) {
   `;
 
   await mailDependencies.send({
-    from: `"Twiller" <${process.env.EMAIL_USER}>`,
     to: email,
     subject: `🎉 Twiller ${planConfig.label} - Payment Confirmed`,
     html,
@@ -794,7 +797,8 @@ export async function startServer() {
     const db = config.dbType || (config.production ? "Atlas (production)" : "local");
     const services = [
       process.env.RAZORPAY_KEY_ID ? "Razorpay ✓" : "Razorpay ✗",
-      (process.env.EMAIL_USER || process.env.APPS_SCRIPT_URL) ? "Email ✓" : "Email ✗",
+      process.env.APPS_SCRIPT_URL ? "Mail: HTTPS configured (delivery unverified)" :
+        (process.env.EMAIL_USER && process.env.EMAIL_PASS) ? "Mail: SMTP configured (delivery unverified)" : "Mail: not configured",
       process.env.MEDIA_PUBLIC_BASE_URL ? `Media → ${process.env.MEDIA_PUBLIC_BASE_URL}` : "Media (default)",
     ].join(" | ");
     console.log(`🚀 Twiller backend ready  port=${port}  env=${env}  db=${db}`);

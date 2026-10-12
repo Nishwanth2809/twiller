@@ -16,11 +16,22 @@ const staging = {
   FRONTEND_ORIGINS: "https://twiller-staging.example.test",
   MEDIA_PUBLIC_BASE_URL: "https://twiller-staging-api.example.test",
   MEDIA_DIR: "/var/data/media",
-  APPS_SCRIPT_URL: "https://script.example.test/mail",
+  APPS_SCRIPT_URL: "https://script.google.com/macros/s/test-deployment/exec",
+  APPS_SCRIPT_SECRET: "fixture-server-secret-32-characters-long",
 };
 
 test("staging backend accepts a separate Atlas database and matching Firebase project", () => {
   assert.equal(validateConfiguration(staging).production, true);
+});
+
+test("Apps Script requires HTTPS and a strong server-only secret", () => {
+  assert.throws(()=>validateConfiguration({...staging,APPS_SCRIPT_URL:"http://script.example.test/mail"}),/HTTPS/);
+  assert.throws(()=>validateConfiguration({...staging,APPS_SCRIPT_URL:"https://script.google.com/macros/s/test-deployment/exec?secret=bad"}),/query data/);
+  assert.throws(()=>validateConfiguration({...staging,APPS_SCRIPT_URL:"https://script.example.test/mail"}),/deployed Google/);
+  assert.throws(()=>validateConfiguration({...staging,APPS_SCRIPT_URL:"https://script.google.com/macros/s/test-deployment/dev"}),/deployed Google/);
+  for(const APPS_SCRIPT_SECRET of [undefined,""," ","short","x".repeat(257),"x".repeat(31)+" "])
+    assert.throws(()=>validateConfiguration({...staging,APPS_SCRIPT_SECRET}),/server-only secret/);
+  assert.equal(validateConfiguration({...staging,EMAIL_USER:undefined,EMAIL_PASS:undefined}).production,true);
 });
 
 test("staging accepts the existing real Firebase project only with explicit approval and matching Admin credentials", () => {

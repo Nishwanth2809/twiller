@@ -3,14 +3,16 @@ import assert from "node:assert/strict";
 import { deliverEmail } from "../mail.js";
 
 const message = { to: "fixture@example.invalid", subject: "Fixture", html: "private-proof-fixture" };
+const secret = "fixture-server-secret-32-characters-long";
 function setup(overrides = {}) {
   const events = []; let smtpCalls = 0;
   return {
     events, calls: () => smtpCalls,
     deps: {
       appsScriptUrl: "https://provider.invalid/private-endpoint",
+      appsScriptSecret: secret,
       fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ success: true }) }),
-      sendSmtp: async options => { smtpCalls++; assert.equal(options, message); return { accepted: [message.to], rejected: [] }; },
+      sendSmtp: async options => { smtpCalls++; assert.deepEqual(options, message); return { accepted: [message.to], rejected: [] }; },
       logger: { error: (...args) => events.push(args) }, timeoutMs: 25,
       ...overrides,
     },
@@ -18,12 +20,54 @@ function setup(overrides = {}) {
 }
 test("Apps Script confirms success and skips fallback", async () => {
   const fixture = setup({fetchImpl: async (url, options) => {
-    assert.equal(options.method, "POST"); assert.deepEqual(JSON.parse(options.body), message);
+    assert.equal(options.method, "POST"); assert.deepEqual(JSON.parse(options.body), {secret,mail:message});
     assert.ok(options.signal instanceof AbortSignal);
     return {ok:true,status:200,json:async()=>({success:true,internal:"never-returned"})};
   }});
   assert.deepEqual(await deliverEmail(message, fixture.deps), {provider:"apps_script",success:true});
   assert.equal(fixture.calls(), 0); assert.deepEqual(fixture.events, []);
+});
+
+test("Apps Script receives only bounded allowlisted fields; caller From is ignored", async () => {
+  const fixture=setup({fetchImpl:async (_url,options)=>{
+    assert.deepEqual(JSON.parse(options.body),{secret,mail:message});
+    assert.equal(options.headers["Content-Type"],"application/json");
+    return {ok:true,status:200,json:async()=>({success:true})};
+  }});
+  assert.equal((await deliverEmail({...message,from:"attacker@example.invalid",cc:"other@example.invalid"},fixture.deps)).provider,"apps_script");
+  assert.equal(fixture.calls(),0);
+});
+
+test("Apps Script requires a server secret and never leaks it through failures", async () => {
+  const fixture=setup({appsScriptSecret:undefined,fetchImpl:async()=>{throw Error("unexpected request");}});
+  await assert.rejects(deliverEmail(message,fixture.deps),{code:"EMAIL_DELIVERY_FAILED"});
+  assert.equal(fixture.calls(),0);
+  assert.equal(JSON.stringify(fixture.events).includes(secret),false);
+  const rejected=setup({fetchImpl:async()=>{throw Error(secret);},sendSmtp:async()=>{throw Error(secret);}});
+  await assert.rejects(deliverEmail(message,rejected.deps),{code:"EMAIL_DELIVERY_FAILED",message:"Email delivery is unavailable"});
+  assert.equal(JSON.stringify(rejected.events).includes(secret),false);
+});
+
+test("invalid recipients and oversized content stop before either provider", async () => {
+  for(const invalid of [
+    {...message,to:"first@example.invalid,second@example.invalid"},
+    {...message,to:"x".repeat(255)+"@example.invalid"},
+    {...message,subject:"x".repeat(201)},
+    {...message,subject:"Header\nInjection"},
+    {...message,html:"x".repeat(49153)},
+  ]) {
+    const fixture=setup({fetchImpl:async()=>{throw Error("must not fetch");},sendSmtp:async()=>{throw Error("must not send");}});
+    await assert.rejects(deliverEmail(invalid,fixture.deps),{code:"EMAIL_DELIVERY_FAILED"});
+    assert.equal(fixture.calls(),0);
+  }
+});
+
+test("SMTP uses only the configured sender, never caller-supplied From", async () => {
+  const {smtpMailOptions}=await import("../mail.js");
+  assert.deepEqual(smtpMailOptions({...message,from:"attacker@example.invalid"},"sender@example.invalid"),{
+    ...message,from:{name:"Twiller",address:"sender@example.invalid"},
+  });
+  assert.throws(()=>smtpMailOptions(message,undefined),{code:"EMAIL_DELIVERY_FAILED"});
 });
 test("Apps Script HTTP failure uses successful SMTP fallback", async () => {
   const fixture = setup({fetchImpl:async()=>({ok:false,status:500,json:async()=>({success:true})})});

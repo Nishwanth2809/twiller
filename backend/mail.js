@@ -1,16 +1,46 @@
 // Transport acknowledgement is not a guarantee of inbox delivery.
 // Never log recipients, message contents, provider URLs, or raw provider errors.
+const MAX_PAYLOAD_BYTES = 65536;
+const MAX_HTML_BYTES = 49152;
+const recipientPattern = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
+
+function deliveryFailure() {
+  const error = new Error("Email delivery is unavailable");
+  error.code = "EMAIL_DELIVERY_FAILED";
+  return error;
+}
+
+export function mailFields(options) {
+  if(!options || typeof options!=="object" || Array.isArray(options) ||
+    typeof options.to!=="string" || options.to.length>254 || !recipientPattern.test(options.to) ||
+    typeof options.subject!=="string" || !options.subject.trim() || options.subject.length>200 || /[\r\n]/.test(options.subject) ||
+    typeof options.html!=="string" || !options.html.trim() || Buffer.byteLength(options.html,"utf8")>MAX_HTML_BYTES)
+    throw deliveryFailure();
+  return {to:options.to,subject:options.subject,html:options.html};
+}
+
+export function smtpMailOptions(options, sender) {
+  if(typeof sender!=="string" || !recipientPattern.test(sender))throw deliveryFailure();
+  return {...mailFields(options),from:{name:"Twiller",address:sender}};
+}
+
 export async function deliverEmail(mailOptions, {
   appsScriptUrl,
+  appsScriptSecret,
   sendSmtp,
   fetchImpl = globalThis.fetch,
   logger = console,
   timeoutMs = 10000,
 }) {
+  const mail = mailFields(mailOptions);
   const diagnostic = (provider, reason, status) => logger.error("Email delivery attempt failed", {
     provider, reason, ...(Number.isInteger(status) ? { httpStatus: status } : {}),
   });
   if (appsScriptUrl) {
+    if(typeof appsScriptSecret!=="string" || appsScriptSecret.length<32 || appsScriptSecret.length>256 || /\s/.test(appsScriptSecret))
+      throw deliveryFailure();
+    const body = JSON.stringify({secret:appsScriptSecret,mail});
+    if(Buffer.byteLength(body,"utf8")>MAX_PAYLOAD_BYTES)throw deliveryFailure();
     const controller = new AbortController();
     let timer;
     let reason = "NETWORK_FAILURE";
@@ -27,7 +57,7 @@ export async function deliverEmail(mailOptions, {
         const response = await fetchImpl(appsScriptUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(mailOptions),
+          body,
           signal: controller.signal,
         });
         status = response.status;
@@ -53,7 +83,7 @@ export async function deliverEmail(mailOptions, {
     }
   }
   try {
-    const result = await sendSmtp(mailOptions);
+    const result = await sendSmtp(mail);
     if (!Array.isArray(result?.accepted) || result.accepted.length === 0 || result.rejected?.length) {
       diagnostic("smtp", "NOT_ACCEPTED");
       throw new Error("SMTP did not accept message");
@@ -62,8 +92,6 @@ export async function deliverEmail(mailOptions, {
   } catch {
     diagnostic("smtp", "DELIVERY_FAILURE");
     // Routes map this to their existing safe error contracts.
-    const error = new Error("Email delivery is unavailable");
-    error.code = "EMAIL_DELIVERY_FAILED";
-    throw error;
+    throw deliveryFailure();
   }
 }
