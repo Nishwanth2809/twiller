@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { boundary, errorHandler, userView, validateRequest, resolveUser, sessionId } from "../security.js";
+import { boundary, errorHandler, HttpError, userView, validateRequest, resolveUser, sessionId } from "../security.js";
 import express from "express";
 
 const owner = { _id: "111111111111111111111111", email: "one@example.test", firebaseUid: "one" };
@@ -101,4 +101,72 @@ test("TW-001: legacy UID adoption requires verified email and an unbound profile
   deps.findOne = async query => query.firebaseUid ? null : { ...owner, firebaseUid: "other" };
   await assert.rejects(resolveUser(deps, token), /requires support/);
   assert.notEqual(sessionId(token), sessionId({ ...token, auth_time: 101 }));
+});
+
+test("unexpected staging 500 logs only safe route and error diagnostics while preserving the client response", () => {
+  const previousEnv = { node: process.env.NODE_ENV, stage: process.env.TWILLER_DEPLOYMENT_STAGE };
+  const previousError = console.error;
+  const lines = [];
+  const secret = "private-token-from-request";
+  const err = Object.assign(new Error(`Authorization: Bearer ${secret}`), { name: "MongoNetworkError", code: "ECONNREFUSED" });
+  err.stack = `MongoNetworkError: ${secret}\n    at query (C:\\app\\backend\\database.js:42:7)\n    at request (https://example.test/?token=${secret})`;
+  const req = { method: "POST", path: `/account/${secret}`, originalUrl: `/account/${secret}?token=${secret}`, route: { path: "/account/:id" }, headers: { authorization: `Bearer ${secret}` }, body: { password: secret } };
+  const res = { headersSent: false, status(value) { this.statusCode = value; return this; }, json(value) { this.body = value; return this; } };
+  try {
+    process.env.NODE_ENV = "production";
+    process.env.TWILLER_DEPLOYMENT_STAGE = "staging";
+    console.error = line => lines.push(line);
+    errorHandler(err, req, res, () => {});
+    assert.equal(res.statusCode, 500);
+    assert.deepEqual(res.body, { error: "Request could not be completed", code: "REQUEST_FAILED" });
+    assert.equal(lines.length, 1);
+    assert.deepEqual(JSON.parse(lines[0]), {
+      event: "unexpected_request_failure", method: "POST", path: "/account/:id",
+      name: "MongoNetworkError", code: "ECONNREFUSED", message: "Unexpected server error",
+      stack: ["database.js:42:7"],
+    });
+    assert.doesNotMatch(lines[0], /private-token|Bearer|Authorization|password|example\.test/);
+    err.name = secret;
+    err.code = secret;
+    errorHandler(err, { method: "POST", path: `/reset/${secret}` }, res, () => {});
+    const redacted = JSON.parse(lines[1]);
+    assert.equal(redacted.name, "Error");
+    assert.equal(redacted.code, "[redacted]");
+    assert.equal(redacted.path, "/[unmatched]");
+    assert.doesNotMatch(lines[1], /private-token|Bearer|Authorization|password|example\.test/);
+  } finally {
+    console.error = previousError;
+    if (previousEnv.node === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previousEnv.node;
+    if (previousEnv.stage === undefined) delete process.env.TWILLER_DEPLOYMENT_STAGE; else process.env.TWILLER_DEPLOYMENT_STAGE = previousEnv.stage;
+  }
+});
+
+test("unexpected error logging is absent outside staging/dev and for expected errors", () => {
+  const previousEnv = { node: process.env.NODE_ENV, stage: process.env.TWILLER_DEPLOYMENT_STAGE };
+  const previousError = console.error;
+  const lines = [];
+  const response = () => ({ headersSent: false, status(value) { this.statusCode = value; return this; }, json(value) { this.body = value; return this; } });
+  try {
+    console.error = line => lines.push(line);
+    process.env.NODE_ENV = "production";
+    delete process.env.TWILLER_DEPLOYMENT_STAGE;
+    const production = response();
+    errorHandler(new Error("private failure"), { method: "GET", route: { path: "/post" } }, production, () => {});
+    assert.deepEqual(production.body, { error: "Request could not be completed", code: "REQUEST_FAILED" });
+    process.env.TWILLER_DEPLOYMENT_STAGE = "staging";
+    const expected = response();
+    errorHandler(new HttpError(400, "INVALID_INPUT", "Invalid input"), { method: "POST", route: { path: "/post" } }, expected, () => {});
+    assert.deepEqual(expected.body, { error: "Invalid input", code: "INVALID_INPUT" });
+    assert.equal(lines.length, 0);
+    process.env.NODE_ENV = "development";
+    delete process.env.TWILLER_DEPLOYMENT_STAGE;
+    const development = response();
+    errorHandler(new Error("private failure"), { method: "GET", route: { path: "/post" } }, development, () => {});
+    assert.equal(lines.length, 1);
+    assert.equal(JSON.parse(lines[0]).path, "/post");
+  } finally {
+    console.error = previousError;
+    if (previousEnv.node === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previousEnv.node;
+    if (previousEnv.stage === undefined) delete process.env.TWILLER_DEPLOYMENT_STAGE; else process.env.TWILLER_DEPLOYMENT_STAGE = previousEnv.stage;
+  }
 });

@@ -159,8 +159,35 @@ export async function resolveUser(User, token) {
   if (!user) fail(409, "IDENTITY_CONFLICT", "Account identity changed. Please sign in again");
   return user;
 }
+const diagnosticErrorNames = new Set([
+  "Error", "TypeError", "ReferenceError", "RangeError", "SyntaxError",
+  "MongoServerError", "MongoNetworkError", "MongoServerSelectionError",
+  "CastError", "ValidationError",
+]);
+function safeErrorDiagnostic(err, req) {
+  const name = diagnosticErrorNames.has(err?.name) ? err.name : "Error";
+  const rawCode = err?.code;
+  const code = typeof rawCode === "number" && Number.isInteger(rawCode) && rawCode >= 0 && rawCode <= 999999
+    ? String(rawCode)
+    : typeof rawCode === "string" && /^(?:E[A-Z0-9_]{1,31}|ERR_[A-Z0-9_]{1,31})$/.test(rawCode) ? rawCode : rawCode == null ? undefined : "[redacted]";
+  // A matched route is a template (for example /post/:id); the request URL may
+  // contain private identifiers or query values and must never enter the log.
+  const route = req.route?.path;
+  const path = typeof route === "string" && /^\/[a-zA-Z0-9_/:*.-]*$/.test(route) ? route : "/[unmatched]";
+  const method = typeof req.method === "string" && /^[A-Z]{2,10}$/.test(req.method) ? req.method : "UNKNOWN";
+  // Never log the raw message or stack header: either may contain request data,
+  // credentials, URLs, or provider diagnostics. Keep only source locations.
+  const stack = typeof err?.stack === "string" ? err.stack.split("\n").slice(1, 13).map(line => {
+    const frame = line.match(/(?:^|[\\/])([a-zA-Z0-9._-]+\.(?:[cm]?js|tsx?)):(\d{1,6}):(\d{1,6})(?:\)|$)/);
+    return frame ? `${frame[1]}:${frame[2]}:${frame[3]}` : null;
+  }).filter(Boolean) : [];
+  return { event: "unexpected_request_failure", method, path, name, ...(code === undefined ? {} : { code }), message: "Unexpected server error", stack };
+}
 export function errorHandler(err, req, res, next) {
   if (res.headersSent) return next(err);
   const status = err.status || (err.type === "entity.too.large" ? 413 : err.type === "entity.parse.failed" ? 400 : err.code === 11000 ? 409 : 500);
+  if (status === 500 && !(err instanceof HttpError) && (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "production" && process.env.TWILLER_DEPLOYMENT_STAGE === "staging")) {
+    console.error(JSON.stringify(safeErrorDiagnostic(err, req)));
+  }
   res.status(status).json({ error: err instanceof HttpError ? err.message : status === 400 ? "Invalid request" : status === 409 ? "Record conflict" : "Request could not be completed", code: err instanceof HttpError ? err.code : "REQUEST_FAILED" });
 }
