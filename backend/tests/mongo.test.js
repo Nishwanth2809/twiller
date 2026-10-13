@@ -17,7 +17,7 @@ import { markRead } from "../notification-operations.js";
 import { pairKey } from "../handles.js";
 import Media from "../models/media.js";
 import sharp from "sharp";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 const uri = process.env.PHASE1_TEST_MONGODB_URI;
@@ -240,4 +240,37 @@ integration("TW-014/TW-029/TW-037/TW-044: uploads are bounded, owner-bound and p
   assert.equal(publicRead.status, 200); assert.equal(publicRead.headers.get("content-type"), "image/jpeg");
   const invalid = await fetch(`${base}/media-upload?kind=image`, { method: "POST", headers: { Authorization: "Bearer test-owner", "Content-Type": "application/octet-stream" }, body: Buffer.from("not media") });
   assert.equal(invalid.status, 400);
+});
+
+integration("Staging media remains readable from MongoDB without a local upload file", async () => {
+  const previousStage = process.env.TWILLER_DEPLOYMENT_STAGE;
+  process.env.TWILLER_DEPLOYMENT_STAGE = "staging";
+  try {
+    process.env.MEDIA_PUBLIC_BASE_URL = base;
+    const png = await sharp({ create: { width: 8, height: 8, channels: 3, background: "green" } }).png().toBuffer();
+    const uploaded = await fetch(`${base}/media-upload?kind=image`, {
+      method: "POST",
+      headers: { Authorization: "Bearer test-owner", "Content-Type": "application/octet-stream" },
+      body: png,
+    });
+    assert.equal(uploaded.status, 201);
+    const media = await uploaded.json();
+    assert.equal((await fetch(media.url)).status, 404, "unpublished media stays private");
+    const profileUpdate = await request(`/userupdate/${owner.email}`, "PATCH", { avatar: media.url });
+    assert.equal(profileUpdate.status, 200);
+    assert.equal(profileUpdate.data.avatar, media.url);
+    const stored = await Media.findById(media.id);
+    await assert.rejects(readFile(path.join(mediaTestDirectory, stored.filename)), { code: "ENOENT" });
+    const response = await fetch(media.url);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("content-type"), "image/jpeg");
+    assert.equal((await response.arrayBuffer()).byteLength, stored.bytes);
+    const partial = await fetch(media.url, { headers: { Range: "bytes=0-1" } });
+    assert.equal(partial.status, 206);
+    assert.equal(partial.headers.get("content-range"), `bytes 0-1/${stored.bytes}`);
+    assert.equal((await partial.arrayBuffer()).byteLength, 2);
+  } finally {
+    if (previousStage === undefined) delete process.env.TWILLER_DEPLOYMENT_STAGE;
+    else process.env.TWILLER_DEPLOYMENT_STAGE = previousStage;
+  }
 });

@@ -1,11 +1,16 @@
 import sharp from "sharp";
 import path from "node:path";
-import { mkdir, writeFile, unlink } from "node:fs/promises";
+import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { GridFSBucket } from "mongodb";
+import mongoose from "mongoose";
 import Media from "./models/media.js";
 import { fail } from "./security.js";
 
 export const IMAGE_MAX = 5 * 1024 * 1024;
 export const AUDIO_MAX = 10 * 1024 * 1024;
+export const MEDIA_BUCKET = "twiller_media";
 // Entire MPEG frame stream / PCM WAV structure is checked; caller duration is ignored.
 export function audioMetadata(buffer) {
   if (buffer.toString("ascii",0,4) === "RIFF" && buffer.toString("ascii",8,12) === "WAVE") {
@@ -62,13 +67,62 @@ export async function validateMedia(buffer, kind) {
 }
 export function mediaUrl(id) { return `${process.env.MEDIA_PUBLIC_BASE_URL || "http://localhost:5000"}/media/${id}`; }
 export function mediaDirectory() { return path.resolve(process.env.MEDIA_DIR || "./media-storage"); }
+export function useDatabaseMedia(env = process.env) { return env.TWILLER_DEPLOYMENT_STAGE === "staging"; }
+function mediaBucket() { return new GridFSBucket(mongoose.connection.db, { bucketName: MEDIA_BUCKET }); }
+export async function writeDatabaseMedia(record, buffer) {
+  const bucket = mediaBucket();
+  await pipeline(Readable.from([buffer]), bucket.openUploadStreamWithId(record._id, record.filename, {
+    contentType: record.mime,
+  }));
+}
+export async function readMedia(record) {
+  if (useDatabaseMedia()) {
+    const bucket = mediaBucket();
+    const file = await bucket.find({ _id: record._id }).limit(1).next();
+    if (file) {
+      const chunks = [];
+      let total = 0;
+      for await (const chunk of bucket.openDownloadStream(record._id)) {
+        total += chunk.length;
+        if (total > AUDIO_MAX) throw new Error("Stored media exceeds the upload limit");
+        chunks.push(chunk);
+      }
+      if (total !== record.bytes) throw new Error("Stored media size mismatch");
+      return Buffer.concat(chunks, total);
+    }
+  }
+  // Read older filesystem uploads when they are still present on this instance.
+  try { return await readFile(path.join(mediaDirectory(), record.filename)); }
+  catch (error) { if (error.code === "ENOENT") return null; throw error; }
+}
+export function mediaByteRange(header, length) {
+  if (!header) return null;
+  const match = typeof header === "string" && /^bytes=(\d*)-(\d*)$/.exec(header);
+  if (!match || (!match[1] && !match[2]) || length < 1) return false;
+  let start, end;
+  if (!match[1]) {
+    const suffix = Number(match[2]);
+    if (!Number.isSafeInteger(suffix) || suffix < 1) return false;
+    start = Math.max(0, length - suffix); end = length - 1;
+  } else {
+    start = Number(match[1]); end = match[2] ? Number(match[2]) : length - 1;
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start >= length || start > end) return false;
+    end = Math.min(end, length - 1);
+  }
+  return { start, end };
+}
 export async function storeMedia(buffer,kind,owner) {
   const validated=await validateMedia(buffer,kind);
   const record=new Media({owner,kind,mime:validated.mime,bytes:validated.buffer.length,duration:validated.duration});
   record.filename=`${record._id}.${validated.extension}`;
-  await mkdir(mediaDirectory(),{recursive:true}); const destination=path.join(mediaDirectory(),record.filename);
-  try { await writeFile(destination,validated.buffer,{flag:"wx"}); await record.save(); }
-  catch(error) { await unlink(destination).catch(()=>{}); throw error; }
+  if (useDatabaseMedia()) {
+    try { await writeDatabaseMedia(record, validated.buffer); await record.save(); }
+    catch (error) { await mediaBucket().delete(record._id).catch(() => {}); throw error; }
+  } else {
+    await mkdir(mediaDirectory(),{recursive:true}); const destination=path.join(mediaDirectory(),record.filename);
+    try { await writeFile(destination,validated.buffer,{flag:"wx"}); await record.save(); }
+    catch(error) { await unlink(destination).catch(()=>{}); throw error; }
+  }
   return {id:String(record._id),url:mediaUrl(record._id),kind,mime:record.mime,bytes:record.bytes,duration:record.duration};
 }
 export async function attachMedia(url,kind,owner,session) {

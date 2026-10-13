@@ -29,9 +29,8 @@ import { cursorFilter, pageResult, literalSearch } from "./pagination.js";
 import { rateLimit, issueChallenge, checkChallenge, consumeChallenge } from "./challenges.js";
 import { corsOrigins, firebaseAuthEmulatorConfig, rejectOrigin, validateConfiguration } from "./config.js";
 import { prepareIndexes } from "./readiness.js";
-import { storeMedia, mediaDirectory, attachMedia, AUDIO_MAX } from "./media.js";
+import { storeMedia, readMedia, mediaByteRange, attachMedia, AUDIO_MAX } from "./media.js";
 import Media from "./models/media.js";
-import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 if (process.env.NODE_ENV !== "test") dotenv.config({ quiet: true });
@@ -755,6 +754,8 @@ app.get("/media/:id", async (req, res, next) => {
     const media = await Media.findById(id);
     if (!media || !media.published) return res.status(404).json({ error: "Media unavailable" });
     if (!/^[a-f0-9]{24}\.(jpg|wav|mp3)$/.test(media.filename)) return res.status(404).json({ error: "Media unavailable" });
+    const bytes = await readMedia(media);
+    if (!bytes) return res.status(404).json({ error: "Media unavailable" });
     // Allow cross-origin image loading from any allowed frontend origin
     const origin = req.headers.origin;
     if (origin && corsOrigins().has(origin)) res.set("Access-Control-Allow-Origin", origin);
@@ -763,8 +764,12 @@ app.get("/media/:id", async (req, res, next) => {
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy": "default-src 'none'",
       "Cache-Control": "public, max-age=31536000, immutable",
+      "Accept-Ranges": "bytes",
     });
-    res.sendFile(path.join(mediaDirectory(), media.filename));
+    const range = mediaByteRange(req.headers.range, bytes.length);
+    if (range === false) return res.status(416).set("Content-Range", `bytes */${bytes.length}`).end();
+    if (range) return res.status(206).set("Content-Range", `bytes ${range.start}-${range.end}/${bytes.length}`).send(bytes.subarray(range.start, range.end + 1));
+    res.send(bytes);
   } catch (err) { next(err); }
 });
 
