@@ -21,11 +21,65 @@ function setup(overrides = {}) {
 test("Apps Script confirms success and skips fallback", async () => {
   const fixture = setup({fetchImpl: async (url, options) => {
     assert.equal(options.method, "POST"); assert.deepEqual(JSON.parse(options.body), {secret,mail:message});
+    assert.equal(options.redirect, "manual");
     assert.ok(options.signal instanceof AbortSignal);
     return {ok:true,status:200,json:async()=>({success:true,internal:"never-returned"})};
   }});
   assert.deepEqual(await deliverEmail(message, fixture.deps), {provider:"apps_script",success:true});
   assert.equal(fixture.calls(), 0); assert.deepEqual(fixture.events, []);
+});
+
+test("Apps Script acknowledgement follows only Google's one-time HTTPS response URL", async () => {
+  const calls = [];
+  const fixture = setup({ sendSmtp: undefined, fetchImpl: async (url, options) => {
+    calls.push({ url: String(url), options });
+    if (calls.length === 1) return {
+      status: 302,
+      headers: { get: name => name === "location" ? "https://script.googleusercontent.com/macros/echo?fixture=one-time" : null },
+    };
+    return { ok: true, status: 200, json: async () => ({ success: true }) };
+  }});
+  assert.deepEqual(await deliverEmail(message, fixture.deps), { provider: "apps_script", success: true });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].options.method, "POST");
+  assert.equal(calls[0].options.redirect, "manual");
+  assert.equal(calls[1].options.method, "GET");
+  assert.equal(calls[1].options.redirect, "error");
+  assert.equal(calls[1].options.body, undefined);
+  assert.equal(calls[1].options.signal, calls[0].options.signal);
+  assert.equal(fixture.calls(), 0);
+});
+
+test("Unexpected Apps Script redirects cannot receive the secret or count as delivery", async () => {
+  for (const location of ["https://other.example.invalid/ack", "http://script.googleusercontent.com/ack", "https://script.googleusercontent.com.evil.invalid/ack"]) {
+    let calls = 0;
+    const fixture = setup({ sendSmtp: undefined, fetchImpl: async () => {
+      calls++;
+      return { status: 302, headers: { get: () => location } };
+    }});
+    await assert.rejects(deliverEmail(message, fixture.deps), { code: "EMAIL_DELIVERY_FAILED" });
+    assert.equal(calls, 1);
+    assert.equal(fixture.events[0][1].reason, "INVALID_REDIRECT");
+    assert.equal(JSON.stringify(fixture.events).includes(secret), false);
+  }
+});
+
+test("Redirected negative acknowledgement and stalled response remain delivery failures", async () => {
+  for (const { secondResponse, expectedReason } of [
+    { secondResponse: { ok: true, status: 200, json: async () => ({ success: false }) }, expectedReason: "PROVIDER_REJECTED" },
+    { secondResponse: new Promise(() => {}), expectedReason: "ACK_TIMEOUT" },
+  ]) {
+    let calls = 0;
+    const fixture = setup({ sendSmtp: undefined, timeoutMs: 5, fetchImpl: async () => {
+      calls++;
+      return calls === 1
+        ? { status: 302, headers: { get: () => "https://script.googleusercontent.com/macros/echo?fixture=one-time" } }
+        : secondResponse;
+    }});
+    await assert.rejects(deliverEmail(message, fixture.deps), { code: "EMAIL_DELIVERY_FAILED" });
+    assert.equal(calls, 2);
+    assert.equal(fixture.events[0][1].reason, expectedReason);
+  }
 });
 
 test("Apps Script receives only bounded allowlisted fields; caller From is ignored", async () => {

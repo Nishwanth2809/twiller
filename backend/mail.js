@@ -45,21 +45,38 @@ export async function deliverEmail(mailOptions, {
     let timer;
     let reason = "NETWORK_FAILURE";
     let status;
+    let awaitingRedirectAcknowledgement = false;
     try {
       const timeout = new Promise((_, reject) => {
         timer = setTimeout(() => {
-          reason = "TIMEOUT";
+          reason = awaitingRedirectAcknowledgement ? "ACK_TIMEOUT" : "TIMEOUT";
           reject(new Error("Email provider timeout"));
           controller.abort();
         }, timeoutMs);
       });
       const attempt = (async () => {
-        const response = await fetchImpl(appsScriptUrl, {
+        let response = await fetchImpl(appsScriptUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body,
           signal: controller.signal,
+          // ContentService serves its acknowledgement through a one-time
+          // script.googleusercontent.com redirect. Inspect that hop so a
+          // redirect to a different host cannot receive the request secret.
+          redirect: "manual",
         });
+        if ([302, 303].includes(response.status)) {
+          reason = "INVALID_REDIRECT";
+          const location = response.headers?.get("location");
+          const redirect = location && new URL(location, appsScriptUrl);
+          if (!redirect || redirect.protocol !== "https:" || redirect.hostname !== "script.googleusercontent.com" ||
+              redirect.username || redirect.password) throw new Error("Unexpected email provider redirect");
+          // The provider's one-time URL is never logged or sent any secret.
+          response.body?.cancel?.().catch(() => {});
+          reason = "REDIRECT_FAILURE";
+          awaitingRedirectAcknowledgement = true;
+          response = await fetchImpl(redirect, { method: "GET", signal: controller.signal, redirect: "error" });
+        }
         status = response.status;
         if (!response.ok) {
           reason = "HTTP_FAILURE";
