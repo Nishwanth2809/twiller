@@ -228,6 +228,7 @@ test("TW-003/TW-008: public posts are queryable anonymously and cross-account wi
   assert.equal(anonFeed.data.tweets[0].content, "Persistent public post content");
 
   // Other authenticated user request
+  sessions.set(sessionId(token), { _id: sessionId(token), uid: token.uid, status: "verified", expiresAt: new Date(Date.now() + 600000) });
   const otherFeed = await request("/feed?type=foryou", "GET", undefined, "valid");
   assert.equal(otherFeed.status, 200);
   assert.equal(otherFeed.data.tweets[0].content, "Persistent public post content");

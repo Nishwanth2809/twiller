@@ -11,6 +11,17 @@ const UserSchema = mongoose.Schema({
   website: { type: String, default: "" },
   phoneNumber: { type: String, default: "" },
   joinedDate: { type: Date, default: Date.now },
+  // Role & Account Status
+  role: {
+    type: String,
+    enum: ["user", "admin"],
+    default: "user",
+  },
+  accountStatus: {
+    type: String,
+    enum: ["active", "suspended"],
+    default: "active",
+  },
   // Subscription fields
   plan: {
     type: String,

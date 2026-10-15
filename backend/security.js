@@ -6,11 +6,22 @@ export class HttpError extends Error {
 }
 export const fail = (status, code, message) => { throw new HttpError(status, code, message); };
 export const PUBLIC_USER_FIELDS = "_id username displayName avatar bio location website joinedDate followers following";
-const privateFields = `${PUBLIC_USER_FIELDS} email phoneNumber plan tweetCount planExpiresAt planActivatedAt notificationsEnabled language loginHistory bookmarks`;
+const privateFields = `${PUBLIC_USER_FIELDS} email phoneNumber plan tweetCount planExpiresAt planActivatedAt notificationsEnabled language loginHistory bookmarks role accountStatus`;
+export const ADMIN_USER_FIELDS = "_id username displayName avatar bio location website joinedDate role accountStatus followers following";
 export function userView(user, privateView = false) {
   if (!user) return null;
   const source = user.toObject ? user.toObject() : user;
   return Object.fromEntries((privateView ? privateFields : PUBLIC_USER_FIELDS).split(" ").filter(k => source[k] !== undefined).map(k => [k, source[k]]));
+}
+export function adminUserView(user) {
+  if (!user) return null;
+  const source = user.toObject ? user.toObject() : user;
+  return Object.fromEntries(ADMIN_USER_FIELDS.split(" ").filter(k => source[k] !== undefined).map(k => [k, source[k]]));
+}
+export function requireAdmin(req, res, next) {
+  if (!req.principal) return next(new HttpError(401, "AUTH_REQUIRED", "Please sign in"));
+  if (req.principal.role !== "admin") return next(new HttpError(403, "ADMIN_REQUIRED", "Administrator access required"));
+  next();
 }
 export const sessionId = token => crypto.createHash("sha256").update(`${token.uid}:${token.auth_time}`).digest("hex");
 export const otpHash = (id, otp) => crypto.createHash("sha256").update(`${id}:${otp}`).digest("hex");
@@ -100,6 +111,7 @@ const specs = {
   "PATCH /conversations/:id/read": { params: { id }, body: { userId: id } },
   "GET /unread-count/:userId": { params: { userId: id } },
   "POST /media-upload": { query: { kind: choice(["image","audio"]) } },
+  "GET /admin/overview": { admin: true },
 };
 function validateObject(value, rules = {}, required = []) {
   if (!value || typeof value !== "object" || Array.isArray(value)) fail(400, "INVALID_INPUT", "Expected an object");
@@ -141,6 +153,11 @@ export function boundary(key, dependencies) {
       const user = await resolveUser(User, token);
       if (!user) fail(404, "PROFILE_REQUIRED", "Complete account registration to continue");
       req.principal = user;
+      if (spec.admin && user.role !== "admin") fail(403, "ADMIN_REQUIRED", "Administrator access required");
+      const isMutation = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
+      if (user.accountStatus === "suspended" && isMutation && !spec.allowSuspended) {
+        fail(403, "ACCOUNT_SUSPENDED", "Your account is suspended.");
+      }
       const ownId = String(user._id);
       for (const value of [req.body?.userId, req.body?.author, req.body?.senderId, req.params.userId, req.query.userId]) if (value !== undefined && value !== ownId) fail(403, "FORBIDDEN", "Account access denied");
       const session = await LoginSession.findById(sessionId(token));

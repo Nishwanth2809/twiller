@@ -18,7 +18,7 @@ import { markRead } from "./notification-operations.js";
 import { registerTopicRoutes } from "./topic-operations.js";
 import { registerCircleRoutes } from "./circle-operations.js";
 import LoginSession from "./models/loginSession.js";
-import { boundary, errorHandler, fail, resolveUser, sessionId, otpHash, userView, PUBLIC_USER_FIELDS } from "./security.js";
+import { boundary, errorHandler, fail, resolveUser, sessionId, otpHash, userView, adminUserView, requireAdmin, PUBLIC_USER_FIELDS } from "./security.js";
 import { verifyPurchase } from "./payment.js";
 import { deliverEmail, smtpMailOptions } from "./mail.js";
 import { quotaState, transaction } from "./quota.js";
@@ -794,6 +794,10 @@ app.get("/media/:id", async (req, res, next) => {
     if (range) return res.status(206).set("Content-Range", `bytes ${range.start}-${range.end}/${bytes.length}`).send(bytes.subarray(range.start, range.end + 1));
     res.send(bytes);
   } catch (err) { next(err); }
+});
+
+app.get("/admin/overview", boundary("GET /admin/overview", securityDependencies), requireAdmin, async (req, res) => {
+  res.json({ status: "ok", admin: req.principal.username });
 });
 
 registerTopicRoutes(app, key => boundary(key, securityDependencies));
