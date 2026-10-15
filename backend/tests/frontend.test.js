@@ -1369,3 +1369,130 @@ test("Composer posts to a chosen joined Circle without changing the public defau
   assert.equal(calls[0][0], "/post"); assert.equal(calls[0][1].circleId, circleFixture()._id);
   assert.deepEqual(calls[0][1].topicIds, []);
 });
+
+test("Static /settings route redirects unauthenticated users to landing and renders settings for authenticated users", () => {
+  // Unauthenticated user scenario
+  const hUnauth = hooks();
+  const replacedUnauth = [];
+  const { default: SettingsRouteUnauth } = compile("app/settings/page.tsx", {
+    react: hUnauth.react,
+    "react/jsx-runtime": jsx,
+    "next/navigation": { useRouter: () => ({ replace: (url) => replacedUnauth.push(url), push: () => {} }) },
+    "@/context/AuthContext": { useAuth: () => ({ user: null, isLoading: false, status: "anonymous" }) },
+    "@/components/layout/Mainlayout": "Mainlayout",
+    "@/components/SettingsPage": "SettingsPage",
+  });
+  const unauthTree = SettingsRouteUnauth();
+  assert.equal(unauthTree.type, "div");
+  hUnauth.effects[0]();
+  assert.deepEqual(replacedUnauth, ["/"]);
+
+  // Authenticated user scenario
+  const hAuth = hooks();
+  const replacedAuth = [];
+  const { default: SettingsRouteAuth } = compile("app/settings/page.tsx", {
+    react: hAuth.react,
+    "react/jsx-runtime": jsx,
+    "next/navigation": { useRouter: () => ({ replace: (url) => replacedAuth.push(url), push: () => {} }) },
+    "@/context/AuthContext": { useAuth: () => ({ user: { _id: "u1", username: "tester" }, isLoading: false, status: "authenticated" }) },
+    "@/components/layout/Mainlayout": "Mainlayout",
+    "@/components/SettingsPage": "SettingsPage",
+  });
+  const authTree = SettingsRouteAuth();
+  assert.equal(authTree.type, "Mainlayout");
+  assert.equal(authTree.props.children.type, "SettingsPage");
+  hAuth.effects[0]();
+  assert.deepEqual(replacedAuth, []);
+});
+
+test("Mainlayout sync recognizes /settings pathname and /?view=settings query", () => {
+  const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+  let listener;
+  globalThis.window = {
+    location: { pathname: "/settings", search: "" },
+    addEventListener(event, callback) { if (event === "popstate") listener = callback; },
+    removeEventListener() {},
+  };
+  try {
+    const h = hooks();
+    let currentPageState;
+    h.react.useState = (initial) => {
+      let val = initial;
+      if (typeof initial === "string" && ["home", "settings"].includes(initial)) {
+        return [currentPageState || val, (next) => { currentPageState = next; }];
+      }
+      return [val, () => {}];
+    };
+    const { default: Mainlayout } = compile("components/layout/Mainlayout.tsx", {
+      react: { ...h.react, cloneElement: (elem, props) => ({ ...elem, props: { ...elem.props, ...props } }), isValidElement: () => true },
+      "react/jsx-runtime": jsx,
+      "next/navigation": { useRouter: () => ({ push: () => {} }), usePathname: () => globalThis.window.location.pathname },
+      "@/context/AuthContext": { useAuth: () => ({ user: { _id: "u1" }, isLoading: false, status: "authenticated", refreshUser: async () => {} }) },
+      "@/lib/axiosInstance": { __esModule: true, default: { get: async () => ({ data: { count: 0 } }) } },
+      "./Sidebar": "Sidebar",
+      "./TopBar": "TopBar",
+      "./Rightsidebar": "Rightsidebar",
+      "./MobileMoreMenu": "MobileMoreMenu",
+      "../TweetComposer": "TweetComposer",
+      "../KeyboardShortcuts": "KeyboardShortcuts",
+      "../SettingsPage": "SettingsPage",
+      "../ProfilePage": "ProfilePage",
+      "../BookmarksPage": "BookmarksPage",
+      "../ExplorePage": "ExplorePage",
+      "../NotificationsPage": "NotificationsPage",
+      "../MessagesPage": "MessagesPage",
+      "../SubscriptionPage": "SubscriptionPage",
+      "../BrandLogo": "BrandLogo",
+      "../loading-spinner": "LoadingSpinner",
+    });
+
+    Mainlayout({ children: "child" });
+    // Run all registered effects (sync is the third effect)
+    h.effects.forEach(eff => { if (typeof eff === "function") eff(); });
+    assert.equal(currentPageState, "settings");
+
+    // Also test popstate with /?view=settings
+    globalThis.window.location = { pathname: "/", search: "?view=settings" };
+    if (listener) listener();
+    assert.equal(currentPageState, "settings");
+  } finally {
+    windowDescriptor ? Object.defineProperty(globalThis, "window", windowDescriptor) : delete globalThis.window;
+  }
+});
+
+test("Normal username route still queries /users/:username and is not hijacked by settings", async () => {
+  const h = hooks();
+  const calls = [];
+  const { default: UserProfilePage } = compile("app/[username]/page.tsx", {
+    react: {
+      ...h.react,
+      useCallback: (fn) => fn,
+    },
+    "react/jsx-runtime": jsx,
+    "next/navigation": { useParams: () => ({ username: "normaluser" }) },
+    "next/link": "a",
+    "@/context/AuthContext": { useAuth: () => ({ user: null }) },
+    "@/components/TweetCard": "TweetCard",
+    "@/components/ui/avatar": { Avatar: "div", AvatarFallback: "span", AvatarImage: "img" },
+    "@/components/ui/button": { Button: "button" },
+    "@/components/ui/tabs": { Tabs: "div", TabsContent: "div", TabsList: "div", TabsTrigger: "button" },
+    "@/components/ui/card": { Card: "div", CardContent: "div" },
+    "@/lib/profile-posts": { appendUniquePage: (prev, next) => [...prev, ...next] },
+    "@/lib/axiosInstance": {
+      __esModule: true,
+      default: {
+        get: async (url) => {
+          calls.push(url);
+          if (url.includes("/posts")) return { data: [], headers: {} };
+          return { data: { _id: "u2", username: "normaluser", displayName: "Normal User" } };
+        }
+      }
+    },
+    "lucide-react": Object.fromEntries(["ArrowLeft", "Calendar", "MapPin", "Link", "UserPlus", "UserCheck"].map(k => [k, "svg"])),
+  });
+
+  UserProfilePage();
+  h.effects[0]();
+  assert.ok(calls.includes("/users/normaluser"));
+  assert.ok(!calls.includes("/users/settings"));
+});

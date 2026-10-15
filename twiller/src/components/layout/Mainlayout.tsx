@@ -90,6 +90,7 @@ const Mainlayout = ({ children }: { children: React.ReactNode }) => {
     const sync = () => {
       if (window.location.pathname === "/search") { setCurrentPage("search"); return; }
       if (window.location.pathname === "/explore") { setCurrentPage("explore"); return; }
+      if (window.location.pathname === "/settings") { setCurrentPage("settings"); return; }
       const requested = new URLSearchParams(window.location.search).get("view") as Page | null;
       const pages: Page[] = ["home", "explore", "search", "notifications", "messages", "bookmarks", "profile", "settings", "subscription"];
       if (requested && pages.includes(requested)) setCurrentPage(requested);
