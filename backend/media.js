@@ -67,8 +67,15 @@ export async function validateMedia(buffer, kind) {
 }
 export function mediaUrl(id) { return `${process.env.MEDIA_PUBLIC_BASE_URL || "http://localhost:5000"}/media/${id}`; }
 export function mediaDirectory() { return path.resolve(process.env.MEDIA_DIR || "./media-storage"); }
-export function useDatabaseMedia(env = process.env) { return env.TWILLER_DEPLOYMENT_STAGE === "staging"; }
-function mediaBucket() { return new GridFSBucket(mongoose.connection.db, { bucketName: MEDIA_BUCKET }); }
+export const mediaDependencies = {
+  bucket: () => new GridFSBucket(mongoose.connection.db, { bucketName: MEDIA_BUCKET }),
+};
+function mediaBucket() { return mediaDependencies.bucket(); }
+export function useDatabaseMedia(env = process.env) {
+  if (env.MEDIA_STORAGE) return env.MEDIA_STORAGE === "database";
+  if (env.TWILLER_DATABASE_MEDIA !== undefined) return env.TWILLER_DATABASE_MEDIA === "true";
+  return env.TWILLER_DEPLOYMENT_STAGE === "staging";
+}
 export async function writeDatabaseMedia(record, buffer) {
   const bucket = mediaBucket();
   await pipeline(Readable.from([buffer]), bucket.openUploadStreamWithId(record._id, record.filename, {
@@ -76,13 +83,16 @@ export async function writeDatabaseMedia(record, buffer) {
   }));
 }
 export async function readMedia(record) {
-  if (useDatabaseMedia()) {
+  if (useDatabaseMedia() && record._id) {
     const bucket = mediaBucket();
-    const file = await bucket.find({ _id: record._id }).limit(1).next();
+    const id = typeof record._id === "string" && mongoose.Types.ObjectId.isValid(record._id)
+      ? new mongoose.Types.ObjectId(record._id)
+      : record._id;
+    const file = await bucket.find({ _id: id }).limit(1).next();
     if (file) {
       const chunks = [];
       let total = 0;
-      for await (const chunk of bucket.openDownloadStream(record._id)) {
+      for await (const chunk of bucket.openDownloadStream(id)) {
         total += chunk.length;
         if (total > AUDIO_MAX) throw new Error("Stored media exceeds the upload limit");
         chunks.push(chunk);

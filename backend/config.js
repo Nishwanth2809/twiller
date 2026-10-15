@@ -22,6 +22,8 @@ export function corsOrigins(env=process.env) {
 export function validateConfiguration(env=process.env) {
   const production=env.NODE_ENV==="production", uri=env.MONGODB_URI||env.MONOGDB_URL;
   if(!uri||!/^mongodb(?:\+srv)?:\/\//.test(uri))throw Error("MONGODB_URI required (MONOGDB_URL is supported legacy alias)");
+  if(env.MEDIA_STORAGE&&!["database","filesystem"].includes(env.MEDIA_STORAGE))throw Error("MEDIA_STORAGE must be 'database' or 'filesystem'");
+  if(env.TWILLER_DATABASE_MEDIA&&!["true","false"].includes(env.TWILLER_DATABASE_MEDIA))throw Error("TWILLER_DATABASE_MEDIA must be 'true' or 'false'");
   if(env.TWILLER_DEPLOYMENT_STAGE==="staging") {
     if(!production)throw Error("Staging requires NODE_ENV=production");
     if(env.TWILLER_LOCAL_AUTH_EMULATOR==="true"||env.FIREBASE_AUTH_EMULATOR_HOST)throw Error("Staging cannot use Firebase Auth Emulator");
