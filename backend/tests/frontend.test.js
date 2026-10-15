@@ -11,7 +11,12 @@ function compile(relative, overrides) {
   const source = ts.transpileModule(readFileSync(filename, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const module = { exports: {} };
   const skeletons = { SkeletonBlock: "SkeletonBlock", PostSkeleton: "PostSkeleton", RowSkeleton: "RowSkeleton" };
-  vm.runInThisContext(`(function(require,module,exports){${source}\n})`, { filename: filename.pathname })(name => name in overrides ? overrides[name] : name === "./ui/Skeletons" ? skeletons : name.endsWith("/ui/AccessibleDialog") ? "AccessibleDialog" : ["./TopicSelector", "./TopicChips", "./TopicsDirectory", "./CircleSelector", "./CircleChip", "./CirclesDirectory", "./CircleCreateDialog"].includes(name) ? { __esModule: true, default: name.slice(2) } : require(name), module, module.exports);
+  const dropdownStubs = {
+    DropdownMenu: "div", DropdownMenuTrigger: "div", DropdownMenuContent: "div",
+    DropdownMenuItem: "div", DropdownMenuSeparator: "div", DropdownMenuPortal: "div",
+    DropdownMenuGroup: "div", DropdownMenuCheckboxItem: "div", DropdownMenuRadioGroup: "div",
+  };
+  vm.runInThisContext(`(function(require,module,exports){${source}\n})`, { filename: filename.pathname })(name => name in overrides ? overrides[name] : name === "./ui/Skeletons" ? skeletons : name.endsWith("/ui/dropdown-menu") ? dropdownStubs : name.endsWith("/ui/AccessibleDialog") ? "AccessibleDialog" : ["./TopicSelector", "./TopicChips", "./TopicsDirectory", "./CircleSelector", "./CircleChip", "./CirclesDirectory", "./CircleCreateDialog"].includes(name) ? { __esModule: true, default: name.slice(2) } : require(name), module, module.exports);
   return module.exports;
 }
 function deferred() { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; }
@@ -1133,7 +1138,7 @@ test("TW-025: feed shows all earlier posts without duplicates after load-more fa
     "./ui/card": uiStubs,
     "./TweetCard": { default: "article", __esModule: true },
     "./TweetComposer": { default: () => null, __esModule: true },
-    "lucide-react": { Feather: "svg" },
+    "lucide-react": { Feather: "svg", ChevronDown: "svg", Check: "svg" },
   };
 
   const originalConsoleError = console.error;
@@ -1495,4 +1500,327 @@ test("Normal username route still queries /users/:username and is not hijacked b
   h.effects[0]();
   assert.ok(calls.includes("/users/normaluser"));
   assert.ok(!calls.includes("/users/settings"));
+});
+
+test("Feed component supports 4 feed modes with compact workspace dropdown, localStorage persistence, honest empty states, and stale request protection", async () => {
+  const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const localStorageMock = new Map();
+  globalThis.window = {
+    location: { pathname: "/" },
+    addEventListener() {},
+    removeEventListener() {},
+    localStorage: {
+      getItem: (key) => localStorageMock.get(key) || null,
+      setItem: (key, val) => localStorageMock.set(key, String(val)),
+      removeItem: (key) => localStorageMock.delete(key),
+    },
+  };
+  globalThis.localStorage = globalThis.window.localStorage;
+
+  try {
+    const h = hooks();
+    let currentAuthUser = { _id: "u123", username: "alice" };
+    const getCalls = [];
+
+    const axiosGet = async (url, config) => {
+      getCalls.push({ url, params: config?.params });
+      return { data: { tweets: [], hasMore: false, nextCursor: null } };
+    };
+
+    const uiStubs = {
+      Card: "div", CardContent: "div",
+      DropdownMenu: "div",
+      DropdownMenuTrigger: "div",
+      DropdownMenuContent: "div",
+      DropdownMenuItem: "button",
+    };
+
+    let currentEffects = [];
+    let prevDepsMap = new Map();
+    let effectIndex = 0;
+    let cbMap = new Map();
+    let cbIndex = 0;
+    const customReact = {
+      ...h.react,
+      useCallback(fn, deps) {
+        const i = cbIndex++;
+        const prev = cbMap.get(i);
+        if (prev && deps && !deps.some((d, idx) => d !== prev.deps[idx])) {
+          return prev.fn;
+        }
+        cbMap.set(i, { fn, deps });
+        return fn;
+      },
+      useEffect(effect, deps) {
+        const i = effectIndex++;
+        const prev = prevDepsMap.get(i);
+        const changed = !deps || !prev || deps.some((d, idx) => d !== prev[idx]);
+        prevDepsMap.set(i, deps);
+        if (changed) currentEffects.push(effect);
+      },
+    };
+
+    const { default: Feed, getSavedFeedMode, FEED_MODES } = compile("components/Feed.tsx", {
+      react: customReact,
+      "react/jsx-runtime": jsx,
+      "@/context/AuthContext": { useAuth: () => ({ user: currentAuthUser }) },
+      "@/lib/axiosInstance": { default: { get: axiosGet }, __esModule: true },
+      "./ui/card": uiStubs,
+      "./ui/dropdown-menu": uiStubs,
+      "./TweetCard": { default: "article", __esModule: true },
+      "./TweetComposer": { default: () => null, __esModule: true },
+      "lucide-react": { Feather: "svg", ChevronDown: "svg", Check: "svg" },
+    });
+
+    // 1. Verify getSavedFeedMode helper:
+    assert.equal(getSavedFeedMode(true), "foryou");
+    localStorageMock.set("twiller-feed-mode", "topics");
+    assert.equal(getSavedFeedMode(true), "topics");
+    assert.equal(getSavedFeedMode(false), "foryou", "Logged out falls back to foryou");
+    localStorageMock.clear();
+
+    const render = () => {
+      h.reset();
+      currentEffects = [];
+      effectIndex = 0;
+      cbIndex = 0;
+      const res = Feed({});
+      currentEffects.forEach(eff => { if (typeof eff === "function") eff(); });
+      return res;
+    };
+
+    const getDropdownItems = (node) => {
+      const list = [];
+      const walk = (n) => {
+        if (!n) return;
+        if (Array.isArray(n)) return n.forEach(walk);
+        if (typeof n === "object") {
+          if (n.type === "button" && typeof n.props?.onSelect === "function") {
+            list.push(n);
+          }
+          if (n.props?.children) walk(n.props.children);
+        }
+      };
+      walk(node);
+      return list;
+    };
+
+    // 2. Initial mount as authenticated user
+    let tree = render();
+
+    // Initial call should be mode=foryou, with NO userId parameter
+    assert.equal(getCalls.length, 1);
+    assert.equal(getCalls[0].url, "/feed");
+    assert.equal(getCalls[0].params.mode, "foryou");
+    assert.equal(getCalls[0].params.userId, undefined, "Server must derive principal, no client userId");
+
+    // 3. Find dropdown items
+    let items = getDropdownItems(tree);
+    assert.equal(items.length, 4, "Must expose exactly 4 feed modes");
+
+    // 4. Switch to topics mode
+    const topicsItem = items.find(item => elementText(item).includes("Topics"));
+    assert.ok(topicsItem, "Topics option must exist");
+    topicsItem.props.onClick();
+
+    // Re-render and wait for async fetch
+    tree = render();
+    await settleTopics();
+    tree = render();
+
+    assert.equal(getCalls.length, 2);
+    assert.equal(getCalls[1].params.mode, "topics");
+    assert.equal(getCalls[1].params.userId, undefined);
+    assert.equal(localStorageMock.get("twiller-feed-mode"), "topics", "Mode preference persisted in localStorage");
+
+    // 5. Empty state check for Topics
+    assert.match(elementText(tree), /No posts from your Topics yet/);
+    assert.match(elementText(tree), /Follow Topics in Discover to shape this feed\./);
+
+    // 6. Switch to Circles mode
+    items = getDropdownItems(tree);
+    const circlesItem = items.find(item => elementText(item).includes("Circles"));
+    assert.ok(circlesItem, "Circles option must exist");
+    circlesItem.props.onClick();
+    tree = render();
+    await settleTopics();
+    tree = render();
+
+    assert.equal(getCalls.length, 3);
+    assert.equal(getCalls[2].params.mode, "circles");
+    assert.match(elementText(tree), /No Circle conversations yet/);
+    assert.match(elementText(tree), /Join a Circle to see its conversations here\./);
+
+    // 7. Switch to Following mode
+    items = getDropdownItems(tree);
+    const followingItem = items.find(item => elementText(item).includes("Following"));
+    assert.ok(followingItem, "Following option must exist");
+    followingItem.props.onClick();
+    tree = render();
+    await settleTopics();
+    tree = render();
+
+    assert.equal(getCalls.length, 4);
+    assert.equal(getCalls[3].params.mode, "following");
+    assert.match(elementText(tree), /Nothing from people you follow/);
+    assert.match(elementText(tree), /Follow some people to see their posts here\./);
+
+    // 8. Switch to For You
+    items = getDropdownItems(tree);
+    const foryouItem = items.find(item => elementText(item).includes("For You"));
+    foryouItem.props.onClick();
+    tree = render();
+    await settleTopics();
+    tree = render();
+    assert.equal(getCalls.length, 5);
+    assert.equal(getCalls[4].params.mode, "foryou");
+    assert.match(elementText(tree), /No posts yet/);
+  } finally {
+    windowDescriptor ? Object.defineProperty(globalThis, "window", windowDescriptor) : delete globalThis.window;
+    delete globalThis.localStorage;
+  }
+});
+
+test("Feed component enforces logged-out fallback, error retries, and disabled options", async () => {
+  const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const localStorageMock = new Map();
+  globalThis.window = {
+    location: { pathname: "/" },
+    addEventListener() {},
+    removeEventListener() {},
+    localStorage: {
+      getItem: (key) => localStorageMock.get(key) || null,
+      setItem: (key, val) => localStorageMock.set(key, String(val)),
+      removeItem: (key) => localStorageMock.delete(key),
+    },
+  };
+  globalThis.localStorage = globalThis.window.localStorage;
+
+  try {
+    const h = hooks();
+    let currentAuthUser = null; // Unauthenticated
+    let failGet = false;
+    const getCalls = [];
+
+    const axiosGet = async (url, config) => {
+      getCalls.push({ url, params: config?.params });
+      if (failGet) {
+        failGet = false;
+        throw new Error("Network failure");
+      }
+      return { data: { tweets: [], hasMore: false, nextCursor: null } };
+    };
+
+    const uiStubs = {
+      Card: "div", CardContent: "div",
+      DropdownMenu: "div",
+      DropdownMenuTrigger: "div",
+      DropdownMenuContent: "div",
+      DropdownMenuItem: "button",
+    };
+
+    let currentEffects = [];
+    let prevDepsMap = new Map();
+    let effectIndex = 0;
+    let cbMap = new Map();
+    let cbIndex = 0;
+    const customReact = {
+      ...h.react,
+      useCallback(fn, deps) {
+        const i = cbIndex++;
+        const prev = cbMap.get(i);
+        if (prev && deps && !deps.some((d, idx) => d !== prev.deps[idx])) return prev.fn;
+        cbMap.set(i, { fn, deps });
+        return fn;
+      },
+      useEffect(effect, deps) {
+        const i = effectIndex++;
+        const prev = prevDepsMap.get(i);
+        const changed = !deps || !prev || deps.some((d, idx) => d !== prev[idx]);
+        prevDepsMap.set(i, deps);
+        if (changed) currentEffects.push(effect);
+      },
+    };
+
+    // Pre-set saved mode in localStorage to "circles"
+    localStorageMock.set("twiller-feed-mode", "circles");
+
+    const { default: Feed } = compile("components/Feed.tsx", {
+      react: customReact,
+      "react/jsx-runtime": jsx,
+      "@/context/AuthContext": { useAuth: () => ({ user: currentAuthUser }) },
+      "@/lib/axiosInstance": { default: { get: axiosGet }, __esModule: true },
+      "./ui/card": uiStubs,
+      "./ui/dropdown-menu": uiStubs,
+      "./TweetCard": { default: "article", __esModule: true },
+      "./TweetComposer": { default: () => null, __esModule: true },
+      "lucide-react": { Feather: "svg", ChevronDown: "svg", Check: "svg" },
+    });
+
+    const render = () => {
+      h.reset();
+      currentEffects = [];
+      effectIndex = 0;
+      cbIndex = 0;
+      const res = Feed({});
+      currentEffects.forEach(eff => { if (typeof eff === "function") eff(); });
+      return res;
+    };
+
+    const getDropdownItems = (node) => {
+      const list = [];
+      const walk = (n) => {
+        if (!n) return;
+        if (Array.isArray(n)) return n.forEach(walk);
+        if (typeof n === "object") {
+          if (n.type === "button" && typeof n.props?.onSelect === "function") list.push(n);
+          if (n.props?.children) walk(n.props.children);
+        }
+      };
+      walk(node);
+      return list;
+    };
+
+    // 1. Mount logged-out: circles mode in storage should safely fall back to foryou
+    let tree = render();
+    await settleTopics();
+    tree = render();
+
+    assert.equal(getCalls.length, 1);
+    assert.equal(getCalls[0].params.mode, "foryou", "Logged-out users cannot initialize to circles");
+
+    // 2. Dropdown options for non-foryou modes should be disabled when logged out
+    const items = getDropdownItems(tree);
+    const foryouItem = items.find(item => elementText(item).includes("For You"));
+    const followingItem = items.find(item => elementText(item).includes("Following"));
+    const topicsItem = items.find(item => elementText(item).includes("Topics"));
+    const circlesItem = items.find(item => elementText(item).includes("Circles"));
+
+    assert.equal(foryouItem.props.disabled, false);
+    assert.equal(followingItem.props.disabled, true);
+    assert.equal(topicsItem.props.disabled, true);
+    assert.equal(circlesItem.props.disabled, true);
+
+    // 3. Error and Retry behavior
+    currentAuthUser = { _id: "u123" };
+    failGet = true;
+    followingItem.props.onClick();
+    tree = render();
+    await settleTopics();
+    tree = render();
+
+    // Verify error banner is visible and retry button exists
+    assert.match(elementText(tree), /Could not load posts/);
+    const retryButton = findElement(tree, node => node.type === "button" && elementText(node) === "Retry");
+    assert.ok(retryButton, "Retry button must be rendered on error");
+
+    // Click retry
+    retryButton.props.onClick();
+    await settleTopics();
+    tree = render();
+    assert.doesNotMatch(elementText(tree), /Could not load posts/);
+  } finally {
+    windowDescriptor ? Object.defineProperty(globalThis, "window", windowDescriptor) : delete globalThis.window;
+    delete globalThis.localStorage;
+  }
 });

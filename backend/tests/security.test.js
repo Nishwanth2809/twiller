@@ -170,3 +170,22 @@ test("unexpected error logging is absent outside staging/dev and for expected er
     if (previousEnv.stage === undefined) delete process.env.TWILLER_DEPLOYMENT_STAGE; else process.env.TWILLER_DEPLOYMENT_STAGE = previousEnv.stage;
   }
 });
+
+test("GET /feed security boundary enforces conditional auth, mode/type conflict rejection, and client userId isolation", async () => {
+  // 1. Anonymous foryou allowed (both mode=foryou and legacy type=foryou)
+  assert.equal((await invoke("GET /feed", { path: "/feed", query: "?mode=foryou", credential: null })).status, 200);
+  assert.equal((await invoke("GET /feed", { path: "/feed", query: "?type=foryou", credential: null })).status, 200);
+
+  // 2. Anonymous personalized modes require authentication (401)
+  assert.equal((await invoke("GET /feed", { path: "/feed", query: "?mode=following", credential: null })).status, 401);
+  assert.equal((await invoke("GET /feed", { path: "/feed", query: "?type=following", credential: null })).status, 401);
+  assert.equal((await invoke("GET /feed", { path: "/feed", query: "?mode=topics", credential: null })).status, 401);
+  assert.equal((await invoke("GET /feed", { path: "/feed", query: "?mode=circles", credential: null })).status, 401);
+
+  // 3. Conflicting mode and type returns 400
+  assert.equal((await invoke("GET /feed", { path: "/feed", query: "?mode=foryou&type=following", credential: null })).status, 400);
+  assert.equal((await invoke("GET /feed", { path: "/feed", query: "?mode=topics&type=foryou", credential: null })).status, 400);
+
+  // 4. Client-supplied userId mismatch returns 403
+  assert.equal((await invoke("GET /feed", { path: "/feed", query: "?mode=following&userId=222222222222222222222222", credential: "valid" })).status, 403);
+});

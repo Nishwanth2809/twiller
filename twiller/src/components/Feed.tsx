@@ -1,20 +1,91 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 import { Card, CardContent } from "./ui/card";
 import TweetCard from "./TweetCard";
 import TweetComposer from "./TweetComposer";
 import axiosInstance from "@/lib/axiosInstance";
 import { useAuth } from "@/context/AuthContext";
-import { Feather } from "lucide-react";
+import { Feather, ChevronDown, Check } from "lucide-react";
 import { PostSkeleton } from "./ui/Skeletons";
+
+export type FeedMode = "foryou" | "following" | "topics" | "circles";
+
+export const FEED_MODES: { id: FeedMode; label: string }[] = [
+  { id: "foryou", label: "For You" },
+  { id: "following", label: "Following" },
+  { id: "topics", label: "Topics" },
+  { id: "circles", label: "Circles" },
+];
+
+const EMPTY_STATES: Record<FeedMode, { title: string; description: string }> = {
+  foryou: {
+    title: "No posts yet",
+    description: "Be the first to post something!",
+  },
+  following: {
+    title: "Nothing from people you follow",
+    description: "Follow some people to see their posts here.",
+  },
+  topics: {
+    title: "No posts from your Topics yet",
+    description: "Follow Topics in Discover to shape this feed.",
+  },
+  circles: {
+    title: "No Circle conversations yet",
+    description: "Join a Circle to see its conversations here.",
+  },
+};
+
+const STORAGE_KEY = "twiller-feed-mode";
+
+export function getSavedFeedMode(hasUser: boolean): FeedMode {
+  if (typeof window === "undefined") return "foryou";
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY) as FeedMode | null;
+    if (saved && ["foryou", "following", "topics", "circles"].includes(saved)) {
+      if (!hasUser && saved !== "foryou") return "foryou";
+      return saved;
+    }
+  } catch {
+    // ignore storage access error
+  }
+  return "foryou";
+}
+
+export interface TweetItem {
+  _id: string;
+  content?: string;
+  author?: {
+    _id?: string;
+    username?: string;
+    displayName?: string;
+    profilePhoto?: string;
+  };
+  timestamp?: string | Date;
+  likes?: number;
+  retweets?: number;
+  comments?: number;
+  likedBy?: string[];
+  retweetedBy?: string[];
+  image?: string | null;
+  audio?: string | null;
+  topics?: Array<{ _id: string; slug: string; name: string }>;
+  circle?: { _id: string; slug: string; name: string } | null;
+  [key: string]: unknown;
+}
 
 const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
   const { user } = useAuth();
-  const [tweets, setTweets] = useState<any[]>([]);
+  const [tweets, setTweets] = useState<TweetItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [tab, setTab] = useState<"foryou" | "following">("foryou");
+  const [mode, setMode] = useState<FeedMode>(getSavedFeedMode(Boolean(user?._id)));
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -30,7 +101,7 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
     announcementTimer.current = setTimeout(() => setPostAnnouncement(""), 4000);
   }, []);
 
-  const fetchTweets = useCallback(async (currentTab: string, cursor: string | null, replace = false) => {
+  const fetchTweets = useCallback(async (currentMode: FeedMode, cursor: string | null, replace = false) => {
     const id = ++requestId.current;
     try {
       setFeedError("");
@@ -39,8 +110,7 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
 
       const res = await axiosInstance.get("/feed", {
         params: {
-          type: currentTab,
-          ...(currentTab === "following" && user?._id ? { userId: user._id } : {}),
+          mode: currentMode,
           ...(cursor ? { cursor } : {}),
           limit: 20,
         },
@@ -53,7 +123,7 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
         setTweets(newTweets);
       } else {
         setTweets((prev) => {
-          const merged = new Map(prev.map((tweet: any) => [tweet._id, tweet]));
+          const merged = new Map(prev.map((tweet: TweetItem) => [tweet._id, tweet]));
           for (const tweet of newTweets) merged.set(tweet._id, tweet);
           return Array.from(merged.values());
         });
@@ -61,32 +131,67 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
       setHasMore(more);
       setNextCursor(cursorAfter || null);
     } catch (error) {
-      if (requestId.current === id) { console.error("Failed to fetch tweets:", error); setFeedError("Could not load posts. Please try again."); }
+      if (requestId.current === id) {
+        console.error("Failed to fetch tweets:", error);
+        setFeedError("Could not load posts. Please try again.");
+      }
     } finally {
-      if (requestId.current === id) { setLoading(false); setLoadingMore(false); loadingMoreRef.current = false; }
+      if (requestId.current === id) {
+        setLoading(false);
+        setLoadingMore(false);
+        loadingMoreRef.current = false;
+      }
     }
-  }, [user?._id]);
+  }, []);
 
-  // Fetch on mount and tab change
+  const handleModeChange = useCallback((newMode: FeedMode) => {
+    if (!user && newMode !== "foryou") return;
+    try {
+      localStorage.setItem(STORAGE_KEY, newMode);
+    } catch {}
+    setMode(newMode);
+  }, [user]);
+
+  // If logged out while on an authenticated mode, safely fall back to "foryou"
+  useEffect(() => {
+    if (!user?._id && mode !== "foryou") {
+      setMode("foryou");
+      try {
+        localStorage.setItem(STORAGE_KEY, "foryou");
+      } catch {}
+    }
+  }, [user?._id, mode]);
+
+  // Fetch on mount and mode change
   useEffect(() => {
     requestId.current++;
-    if (tab === "following" && !user?._id) { setTab("foryou"); return; }
+    if (!user?._id && mode !== "foryou") {
+      setMode("foryou");
+      return;
+    }
     setTweets([]);
     setHasMore(true);
     setNextCursor(null);
-    fetchTweets(tab, null, true);
-  }, [tab, user?._id, fetchTweets]);
+    setFeedError("");
+    fetchTweets(mode, null, true);
+  }, [mode, user?._id, fetchTweets]);
 
   useEffect(() => {
     const created = (event: Event) => {
       const tweet = (event as CustomEvent).detail;
-      if (tweet?._id) { setTweets(previous => [tweet, ...previous.filter(item => item._id !== tweet._id)]); announcePost(); }
+      if (tweet?._id) {
+        setTweets((previous) => [tweet, ...previous.filter((item) => item._id !== tweet._id)]);
+        announcePost();
+      }
     };
     window.addEventListener("twiller:post-created", created);
-    return () => { window.removeEventListener("twiller:post-created", created); if (announcementTimer.current) clearTimeout(announcementTimer.current); };
+    return () => {
+      window.removeEventListener("twiller:post-created", created);
+      if (announcementTimer.current) clearTimeout(announcementTimer.current);
+    };
   }, [announcePost]);
 
-  const handleNewTweet = (newTweet: any) => {
+  const handleNewTweet = (newTweet: TweetItem) => {
     setTweets((prev) => [newTweet, ...prev]);
     announcePost();
   };
@@ -95,7 +200,7 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
     setTweets((prev) => prev.filter((t) => t._id !== tweetId));
   };
 
-  const handleTweetUpdated = (updatedTweet: any) => {
+  const handleTweetUpdated = (updatedTweet: TweetItem) => {
     setTweets((prev) =>
       prev.map((t) => (t._id === updatedTweet._id ? updatedTweet : t))
     );
@@ -104,37 +209,71 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
   const loadMore = () => {
     if (!loadingMoreRef.current && !loadingMore && hasMore && nextCursor) {
       loadingMoreRef.current = true;
-      fetchTweets(tab, nextCursor);
+      fetchTweets(mode, nextCursor);
     }
   };
+
+  const currentModeLabel = FEED_MODES.find((m) => m.id === mode)?.label || "For You";
 
   return (
     <div className="twiller-feed min-h-screen">
       <p role="status" aria-live="polite" className="sr-only">{postAnnouncement}</p>
-      <h1 className="sr-only">Home</h1>
-      <TweetComposer key={user?._id || "public"} onTweetPosted={handleNewTweet} onNavigate={onNavigate} />
-      {/* Existing feed filters follow the composer, matching the workspace reference. */}
-      <div className="sticky top-0 bg-black/90 backdrop-blur-md border-b border-gray-800 z-10">
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "foryou" | "following")} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-transparent border-b border-gray-800 rounded-none h-auto">
-            <TabsTrigger
-              value="foryou"
-              className="data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:rounded-none text-gray-400 hover:bg-gray-900/50 py-4 font-semibold"
+
+      {/* Sticky feed header with Home and compact workspace control */}
+      <div className="sticky top-0 bg-black/90 backdrop-blur-md border-b border-gray-800 z-10 px-4 py-3 flex items-center justify-between">
+        <h1 className="text-xl font-bold text-white tracking-tight">Home</h1>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="Feed mode selector"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-700 bg-gray-900/80 hover:bg-gray-800 text-sm font-medium text-gray-200 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 max-w-[180px] sm:max-w-none"
             >
-              For you
-            </TabsTrigger>
-            <TabsTrigger
-              value="following"
-              className="data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:rounded-none text-gray-400 hover:bg-gray-900/50 py-4 font-semibold"
-            >
-              Following
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+              <span className="truncate">{currentModeLabel}</span>
+              <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className="w-48 bg-gray-950 border border-gray-800 text-gray-200 shadow-xl p-1 z-50 rounded-lg"
+          >
+            {FEED_MODES.map((item) => {
+              const isDisabled = !user && item.id !== "foryou";
+              return (
+                <DropdownMenuItem
+                  key={item.id}
+                  disabled={isDisabled}
+                  onSelect={() => handleModeChange(item.id)}
+                  onClick={() => handleModeChange(item.id)}
+                  className={`flex items-center justify-between cursor-pointer px-3 py-2 text-sm rounded-md transition-colors ${
+                    isDisabled
+                      ? "opacity-50 cursor-not-allowed"
+                      : "hover:bg-gray-800 focus:bg-gray-800"
+                  } ${mode === item.id ? "text-blue-400 font-semibold" : "text-gray-200"}`}
+                >
+                  <span>{item.label}</span>
+                  {mode === item.id && <Check className="h-4 w-4 text-blue-400" />}
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
+      <TweetComposer key={user?._id || "public"} onTweetPosted={handleNewTweet} onNavigate={onNavigate} />
+
       <div className="divide-y divide-gray-800">
-        {feedError && <div role="alert" className="p-4 text-sm text-red-400">{feedError} <button className="underline" onClick={() => fetchTweets(tab, tweets.length ? nextCursor : null, tweets.length === 0)}>Retry</button></div>}
+        {feedError && (
+          <div role="alert" className="p-4 text-sm text-red-400">
+            {feedError}{" "}
+            <button
+              className="underline"
+              onClick={() => fetchTweets(mode, tweets.length ? nextCursor : null, tweets.length === 0)}
+            >
+              Retry
+            </button>
+          </div>
+        )}
         {loading ? (
           <PostSkeleton count={5} />
         ) : tweets.length === 0 ? (
@@ -142,20 +281,16 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
             <CardContent className="py-16 text-center">
               <Feather className="h-12 w-12 text-gray-700 mx-auto mb-4" />
               <h3 className="text-xl font-bold text-white mb-2">
-                {tab === "following"
-                  ? "Nothing from people you follow"
-                  : "No posts yet"}
+                {EMPTY_STATES[mode]?.title || "No posts yet"}
               </h3>
-              <p className="text-gray-500 text-sm">
-                {tab === "following"
-                  ? "Follow some people to see their posts here."
-                  : "Be the first to post something!"}
+              <p className="text-gray-500 text-sm max-w-sm mx-auto">
+                {EMPTY_STATES[mode]?.description || "Be the first to post something!"}
               </p>
             </CardContent>
           </Card>
         ) : (
           <>
-            {tweets.map((tweet: any) => (
+            {tweets.map((tweet: TweetItem) => (
               <TweetCard
                 key={tweet._id}
                 tweet={tweet}
@@ -178,7 +313,7 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
             )}
             {!hasMore && tweets.length > 0 && (
               <div className="py-8 text-center text-gray-600 text-sm">
-                You're all caught up!
+                You&apos;re all caught up!
               </div>
             )}
           </>

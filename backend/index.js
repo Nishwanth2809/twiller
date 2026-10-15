@@ -23,6 +23,7 @@ import { verifyPurchase } from "./payment.js";
 import { deliverEmail, smtpMailOptions } from "./mail.js";
 import { quotaState, transaction } from "./quota.js";
 import { createPost, deletePost, follow } from "./post-operations.js";
+import { getFeed } from "./feed-operations.js";
 import { toggleReaction, toggleBookmark } from "./reactions.js";
 import { normalizeHandle, pairKey } from "./handles.js";
 import { cursorFilter, pageResult, literalSearch } from "./pagination.js";
@@ -495,14 +496,9 @@ app.delete("/post/:id", boundary("DELETE /post/:id", securityDependencies), asyn
   res.json(await deletePost(req.principal._id,req.params.id));
 });
 
-// Get tweet feed with pagination (for-you: all, following: filtered)
-app.get("/feed", boundary("GET /feed", securityDependencies), async (req,res)=>{
-  const limit=Number(req.query.limit||20);
-  const query={parentId:null,deletedAt:null,...cursorFilter(req.query.cursor,"timestamp")};
-  if(req.query.type==="following")query.author={$in:[...req.principal.following,req.principal._id]};
-  const rows=await Tweet.find(query).sort({timestamp:-1,_id:-1}).skip(req.query.cursor?0:(Number(req.query.page||1)-1)*limit).limit(limit+1).populate("author",PUBLIC_USER_FIELDS);
-  const result=pageResult(rows,limit);
-  res.json({tweets:result.items,hasMore:result.hasMore,nextCursor:result.nextCursor,page:Number(req.query.page||1)});
+// Get tweet feed with pagination (modes: foryou, following, topics, circles)
+app.get("/feed", boundary("GET /feed", securityDependencies), async (req, res) => {
+  res.json(await getFeed(req.principal, req.query));
 });
 
 // Create a reply to a tweet

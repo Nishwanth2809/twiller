@@ -56,7 +56,7 @@ const specs = {
   "PUT /bookmarks/:id": { params: { id } },
   "DELETE /bookmarks/:id": { params: { id } },
   "DELETE /bookmarks": {},
-  "GET /feed": { public: true, query: { ...collectionQuery, page: integer(100000), userId: id, type: choice(["foryou", "following"]) } },
+  "GET /feed": { public: true, optionalAuth: true, query: { ...collectionQuery, page: integer(100000), userId: id, type: choice(["foryou", "following"]), mode: choice(["foryou", "following", "topics", "circles"]) } },
   "POST /post/:id/reply": { params: { id }, body: { author: id, content: str(200, 1) }, required: ["content"] },
   "GET /post/:id/replies": { public: true, params: { id }, query: collectionQuery },
   "GET /users/:username": { public: true, params: { username: str(50, 1) } },
@@ -113,7 +113,12 @@ export function boundary(key, dependencies) {
     try {
       const { verifyToken, User, LoginSession, Conversation } = dependencies;
       const spec = validateRequest(key, req); // Before ANY database lookup.
-      const personalized = key === "GET /feed" && req.query.type === "following" || key === "GET /suggested-users" && req.query.userId;
+      if (key === "GET /feed" && req.query.mode && req.query.type && req.query.mode !== req.query.type) {
+        fail(400, "FEED_MODE_CONFLICT", "Conflicting feed mode and legacy type parameters");
+      }
+      const effectiveFeedMode = key === "GET /feed" ? (req.query.mode || req.query.type || "foryou") : null;
+      const isPersonalizedFeed = effectiveFeedMode && ["following", "topics", "circles"].includes(effectiveFeedMode);
+      const personalized = isPersonalizedFeed || key === "GET /suggested-users" && req.query.userId;
       if (spec.public && !personalized && (!spec.optionalAuth || !req.headers.authorization) || key === "GET /") return next();
       const match = /^Bearer ([^\s]+)$/.exec(req.headers.authorization || "");
       if (!match) fail(401, "AUTH_REQUIRED", "Please sign in");
