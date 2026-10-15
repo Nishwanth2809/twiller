@@ -83,6 +83,9 @@ test("FeedRulesPanel: helper formatting functions formatRuleLabel and formatDura
   assert.equal(formatRuleLabel({ ruleType: "hide_media" }), "Hide media");
   assert.equal(formatRuleLabel({ ruleType: "hide_topic", target: { name: "Artificial Intelligence" } }), "Hide Artificial Intelligence");
   assert.equal(formatRuleLabel({ ruleType: "hide_topic", target: null }), "Hide Topic");
+  assert.equal(formatRuleLabel({ ruleType: "boost_topic", target: { name: "Web Development" } }), "Show more Web Development");
+  assert.equal(formatRuleLabel({ ruleType: "reduce_topic", target: { name: "Crypto" } }), "Show less Crypto");
+  assert.equal(formatRuleLabel({ ruleType: "prioritize_circle", target: { name: "Designers Club" } }), "Prioritize Designers Club");
 
   // formatDurationLabel
   assert.equal(formatDurationLabel("one_hour"), "1 hour");

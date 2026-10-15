@@ -7,8 +7,8 @@ import type { Topic } from "@/lib/topics";
 
 export interface FeedRule {
   _id: string;
-  ruleType: "only_following" | "hide_topic" | "hide_media";
-  targetType: "topic" | null;
+  ruleType: "only_following" | "hide_topic" | "hide_media" | "boost_topic" | "reduce_topic" | "prioritize_circle";
+  targetType: "topic" | "circle" | null;
   target?: { _id: string; name: string; slug: string; status?: string } | null;
   duration: "one_hour" | "today" | "seven_days" | "until_removed";
   expiresAt: string | null;
@@ -19,6 +19,9 @@ const RULE_TYPES = [
   { id: "only_following", label: "Only people I follow" },
   { id: "hide_topic", label: "Hide a Topic" },
   { id: "hide_media", label: "Hide media" },
+  { id: "boost_topic", label: "Show more from a Topic" },
+  { id: "reduce_topic", label: "Show less from a Topic" },
+  { id: "prioritize_circle", label: "Prioritize a Circle" },
 ] as const;
 
 const DURATIONS = [
@@ -31,6 +34,15 @@ const DURATIONS = [
 export function formatRuleLabel(rule: FeedRule): string {
   if (rule.ruleType === "hide_topic") {
     return `Hide ${rule.target?.name || "Topic"}`;
+  }
+  if (rule.ruleType === "boost_topic") {
+    return `Show more ${rule.target?.name || "Topic"}`;
+  }
+  if (rule.ruleType === "reduce_topic") {
+    return `Show less ${rule.target?.name || "Topic"}`;
+  }
+  if (rule.ruleType === "prioritize_circle") {
+    return `Prioritize ${rule.target?.name || "Circle"}`;
   }
   if (rule.ruleType === "only_following") {
     return "Only people I follow";
@@ -67,17 +79,27 @@ export default function FeedRulesPanel({
   onRuleDeleted,
 }: FeedRulesPanelProps) {
   const [showAddForm, setShowAddForm] = useState(false);
-  const [selectedType, setSelectedType] = useState<"only_following" | "hide_topic" | "hide_media">("only_following");
+  const [selectedType, setSelectedType] = useState<
+    "only_following" | "hide_topic" | "hide_media" | "boost_topic" | "reduce_topic" | "prioritize_circle"
+  >("only_following");
   const [selectedDuration, setSelectedDuration] = useState<"one_hour" | "today" | "seven_days" | "until_removed">("today");
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [topicSearch, setTopicSearch] = useState("");
   const [availableTopics, setAvailableTopics] = useState<Topic[]>([]);
   const [loadingTopics, setLoadingTopics] = useState(false);
+
+  const [selectedCircle, setSelectedCircle] = useState<{ _id: string; name: string; slug: string } | null>(null);
+  const [availableCircles, setAvailableCircles] = useState<{ _id: string; name: string; slug: string }[]>([]);
+  const [loadingCircles, setLoadingCircles] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const panelRef = useRef<HTMLDivElement>(null);
+
+  const isTopicRule = selectedType === "hide_topic" || selectedType === "boost_topic" || selectedType === "reduce_topic";
+  const isCircleRule = selectedType === "prioritize_circle";
 
   // Esc key listener
   useEffect(() => {
@@ -91,9 +113,9 @@ export default function FeedRulesPanel({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [open, onClose]);
 
-  // Load topics when hide_topic is selected
+  // Load topics when topic rule is selected
   useEffect(() => {
-    if (!open || !showAddForm || selectedType !== "hide_topic") return;
+    if (!open || !showAddForm || !isTopicRule) return;
     let active = true;
     setLoadingTopics(true);
     axiosInstance
@@ -112,12 +134,39 @@ export default function FeedRulesPanel({
     return () => {
       active = false;
     };
-  }, [open, showAddForm, selectedType, topicSearch]);
+  }, [open, showAddForm, isTopicRule, topicSearch]);
+
+  // Load joined circles from GET /me/circles when prioritize_circle is selected
+  useEffect(() => {
+    if (!open || !showAddForm || !isCircleRule) return;
+    let active = true;
+    setLoadingCircles(true);
+    axiosInstance
+      .get("/me/circles", { params: { limit: 50 } })
+      .then((res) => {
+        if (active) {
+          setAvailableCircles(res.data?.circles || []);
+        }
+      })
+      .catch(() => {
+        if (active) setAvailableCircles([]);
+      })
+      .finally(() => {
+        if (active) setLoadingCircles(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [open, showAddForm, isCircleRule]);
 
   const handleApply = async () => {
     setError("");
-    if (selectedType === "hide_topic" && !selectedTopic) {
-      setError("Please select a topic to hide.");
+    if (isTopicRule && !selectedTopic) {
+      setError("Please select a topic.");
+      return;
+    }
+    if (isCircleRule && !selectedCircle) {
+      setError("Please select a joined circle to prioritize.");
       return;
     }
 
@@ -127,13 +176,18 @@ export default function FeedRulesPanel({
         ruleType: selectedType,
         duration: selectedDuration,
       };
-      if (selectedType === "hide_topic") {
+      if (isTopicRule) {
         payload.targetType = "topic";
         payload.targetId = selectedTopic?._id;
+      } else if (isCircleRule) {
+        payload.targetType = "circle";
+        payload.targetId = selectedCircle?._id;
       }
+
       await axiosInstance.post("/feed-rules", payload);
       setShowAddForm(false);
       setSelectedTopic(null);
+      setSelectedCircle(null);
       setTopicSearch("");
       onRuleCreated();
     } catch (err: unknown) {
@@ -209,7 +263,7 @@ export default function FeedRulesPanel({
 
             {rules.length === 0 ? (
               <p className="text-sm text-gray-400 py-3 text-center bg-gray-900/40 rounded-lg border border-gray-800/50">
-                No active feed rules. Tap below to create temporary filters.
+                No active feed rules. Tap below to create temporary filters or ranking rules.
               </p>
             ) : (
               <div className="space-y-2">
@@ -277,7 +331,10 @@ export default function FeedRulesPanel({
                     <button
                       key={type.id}
                       type="button"
-                      onClick={() => setSelectedType(type.id)}
+                      onClick={() => {
+                        setSelectedType(type.id);
+                        setError("");
+                      }}
                       className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors text-left ${
                         selectedType === type.id
                           ? "bg-blue-600/20 border border-blue-500 text-blue-400 font-medium"
@@ -291,11 +348,15 @@ export default function FeedRulesPanel({
                 </div>
               </div>
 
-              {/* If hide_topic: Topic Search & Selector */}
-              {selectedType === "hide_topic" && (
+              {/* If Topic Rule: Topic Search & Selector */}
+              {isTopicRule && (
                 <div>
                   <label htmlFor="topic-search-input" className="block text-xs font-semibold text-gray-300 mb-1.5">
-                    Select Topic to Hide
+                    {selectedType === "hide_topic"
+                      ? "Select Topic to Hide"
+                      : selectedType === "boost_topic"
+                      ? "Select Topic to Show More From"
+                      : "Select Topic to Show Less From"}
                   </label>
                   <input
                     id="topic-search-input"
@@ -324,6 +385,38 @@ export default function FeedRulesPanel({
                         >
                           <span className="truncate">{topic.name}</span>
                           {selectedTopic?._id === topic._id && <Check className="h-3 w-3 shrink-0" />}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* If Circle Rule: Circle Selector (from /me/circles) */}
+              {isCircleRule && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                    Select Joined Circle to Prioritize
+                  </label>
+                  <div className="max-h-36 overflow-y-auto space-y-1 border border-gray-800/80 rounded-lg p-1 bg-gray-950/50">
+                    {loadingCircles ? (
+                      <p className="text-xs text-gray-500 p-2 text-center">Loading your circles...</p>
+                    ) : availableCircles.length === 0 ? (
+                      <p className="text-xs text-gray-500 p-2 text-center">You have not joined any circles yet</p>
+                    ) : (
+                      availableCircles.map((circle) => (
+                        <button
+                          key={circle._id}
+                          type="button"
+                          onClick={() => setSelectedCircle(circle)}
+                          className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs flex items-center justify-between ${
+                            selectedCircle?._id === circle._id
+                              ? "bg-blue-600 text-white font-semibold"
+                              : "text-gray-300 hover:bg-gray-800"
+                          }`}
+                        >
+                          <span className="truncate">{circle.name}</span>
+                          {selectedCircle?._id === circle._id && <Check className="h-3 w-3 shrink-0" />}
                         </button>
                       ))
                     )}

@@ -1,7 +1,53 @@
 import FeedRule, { FEED_RULE_TYPES, FEED_RULE_DURATIONS } from "./models/feedRule.js";
 import Topic from "./models/topic.js";
+import Circle from "./models/circle.js";
+import CircleMembership from "./models/circleMembership.js";
 import { fail } from "./security.js";
 import mongoose from "mongoose";
+
+/**
+ * Explicitly populate target details (Topic or Circle) on rule objects
+ */
+export async function populateRuleTargets(rules = []) {
+  if (!rules || !rules.length) return rules;
+  if (mongoose.connection.readyState === 0 && Topic.find === mongoose.Model.find && Circle.find === mongoose.Model.find) {
+    return rules;
+  }
+  const topicIds = [];
+  const circleIds = [];
+
+  for (const r of rules) {
+    const rawTarget = r.target?._id || r.target;
+    if (rawTarget) {
+      if (r.targetType === "topic") topicIds.push(rawTarget);
+      if (r.targetType === "circle") circleIds.push(rawTarget);
+    }
+  }
+
+  const [topics, circles] = await Promise.all([
+    topicIds.length && (mongoose.connection.readyState !== 0 || Topic.find !== mongoose.Model.find)
+      ? Topic.find({ _id: { $in: topicIds } }).select("name slug status").lean()
+      : [],
+    circleIds.length && (mongoose.connection.readyState !== 0 || Circle.find !== mongoose.Model.find)
+      ? Circle.find({ _id: { $in: circleIds } }).select("name slug status").lean()
+      : [],
+  ]);
+
+  const topicMap = new Map((topics || []).map(t => [String(t._id), t]));
+  const circleMap = new Map((circles || []).map(c => [String(c._id), c]));
+
+  for (const r of rules) {
+    const rawTarget = r.target?._id || r.target;
+    if (rawTarget) {
+      if (r.targetType === "topic") {
+        r.target = topicMap.get(String(rawTarget)) || (typeof r.target === "object" ? r.target : { _id: rawTarget });
+      } else if (r.targetType === "circle") {
+        r.target = circleMap.get(String(rawTarget)) || (typeof r.target === "object" ? r.target : { _id: rawTarget });
+      }
+    }
+  }
+  return rules;
+}
 
 /**
  * Deterministic expiration calculation:
@@ -41,13 +87,14 @@ export async function getActiveRules(userId, now = new Date()) {
     return [];
   }
   const current = new Date(now);
-  return FeedRule.find({
+  const rules = await FeedRule.find({
     user: userId,
     $or: [{ expiresAt: null }, { expiresAt: { $gt: current } }],
   })
     .sort({ createdAt: -1 })
-    .populate("target", "name slug status")
     .lean();
+
+  return populateRuleTargets(rules);
 }
 
 /**
@@ -68,22 +115,43 @@ export async function createFeedRule(principal, body, now = new Date()) {
   let finalTargetType = null;
   let finalTarget = null;
 
-  if (ruleType === "hide_topic") {
+  if (ruleType === "hide_topic" || ruleType === "boost_topic" || ruleType === "reduce_topic") {
     if (targetType !== "topic") {
-      fail(400, "INVALID_INPUT", "targetType must be 'topic' for hide_topic rule");
+      fail(400, "INVALID_INPUT", `targetType must be 'topic' for ${ruleType} rule`);
     }
     if (!targetId || !mongoose.isValidObjectId(targetId)) {
-      fail(400, "INVALID_INPUT", "Valid targetId is required for hide_topic rule");
+      fail(400, "INVALID_INPUT", `Valid targetId is required for ${ruleType} rule`);
     }
     const topic = await Topic.findById(targetId).select("status name slug").lean();
     if (!topic) {
       fail(404, "TOPIC_NOT_FOUND", "Target topic does not exist");
     }
     if (topic.status !== "active") {
-      fail(400, "INACTIVE_TOPIC", "Cannot hide an inactive topic");
+      fail(400, "INACTIVE_TOPIC", `Cannot configure ${ruleType} for an inactive topic`);
     }
     finalTargetType = "topic";
     finalTarget = topic._id;
+  } else if (ruleType === "prioritize_circle") {
+    if (targetType !== "circle") {
+      fail(400, "INVALID_INPUT", "targetType must be 'circle' for prioritize_circle rule");
+    }
+    if (!targetId || !mongoose.isValidObjectId(targetId)) {
+      fail(400, "INVALID_INPUT", "Valid targetId is required for prioritize_circle rule");
+    }
+    const circle = await Circle.findById(targetId).select("status name slug").lean();
+    if (!circle) {
+      fail(404, "CIRCLE_NOT_FOUND", "Target circle does not exist");
+    }
+    if (circle.status !== "active") {
+      fail(400, "INACTIVE_CIRCLE", "Cannot prioritize an inactive circle");
+    }
+    // Verify principal membership
+    const membership = await CircleMembership.findOne({ circle: targetId, user: principal._id }).lean();
+    if (!membership) {
+      fail(403, "NOT_CIRCLE_MEMBER", "You can only prioritize circles you are currently a member of");
+    }
+    finalTargetType = "circle";
+    finalTarget = circle._id;
   } else {
     // only_following and hide_media must not have targetType or targetId
     if (targetType !== undefined && targetType !== null) {
@@ -109,7 +177,8 @@ export async function createFeedRule(principal, body, now = new Date()) {
     existing.expiresAt = expiresAt;
     existing.updatedAt = new Date(now);
     await existing.save();
-    const populated = await FeedRule.findById(existing._id).populate("target", "name slug status");
+    const doc = existing.toObject ? existing.toObject() : existing;
+    const [populated] = await populateRuleTargets([doc]);
     return { rule: populated, isNew: false };
   }
 
@@ -124,7 +193,8 @@ export async function createFeedRule(principal, body, now = new Date()) {
     updatedAt: new Date(now),
   });
 
-  const populated = await FeedRule.findById(created._id).populate("target", "name slug status");
+  const doc = created.toObject ? created.toObject() : created;
+  const [populated] = await populateRuleTargets([doc]);
   return { rule: populated, isNew: true };
 }
 

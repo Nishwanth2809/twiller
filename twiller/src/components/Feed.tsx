@@ -170,9 +170,14 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
       }
       setHasMore(more);
       setNextCursor(cursorAfter || null);
-    } catch (error) {
+    } catch (error: unknown) {
       if (requestId.current === id) {
         console.error("Failed to fetch tweets:", error);
+        const code = (error as { response?: { data?: { code?: string } } })?.response?.data?.code;
+        if (code === "STALE_FEED_CURSOR") {
+          fetchTweets(currentMode, null, true);
+          return;
+        }
         setFeedError("Could not load posts. Please try again.");
       }
     } finally {

@@ -34,7 +34,14 @@ function mockQuery(result = []) {
 }
 
 test("FeedRule Model: schema enums, indexes, and constants", () => {
-  assert.deepEqual(FEED_RULE_TYPES, ["only_following", "hide_topic", "hide_media"]);
+  assert.deepEqual(FEED_RULE_TYPES, [
+    "only_following",
+    "hide_topic",
+    "hide_media",
+    "boost_topic",
+    "reduce_topic",
+    "prioritize_circle",
+  ]);
   assert.deepEqual(FEED_RULE_DURATIONS, ["one_hour", "today", "seven_days", "until_removed"]);
 
   const indexes = FeedRule.schema.indexes();
