@@ -382,3 +382,18 @@ html[data-theme="dark"] .twiller-post:hover { background-color: #152035 !importa
   outline-offset: 2px;
 }
 .twiller-circle-dialog { max-width: min(28rem, calc(100vw - 2rem)); max-height: min(85vh, 42rem); overflow-y: auto; }
+
+/* Conversation Intelligence Source Highlight */
+.twiller-source-highlight {
+  outline: 2px solid var(--brand-link, #4f46e5) !important;
+  outline-offset: -2px;
+  border-left: 4px solid var(--brand-highlight, #22d3ee) !important;
+  background-color: rgba(79, 70, 229, 0.14) !important;
+  transition: background-color 0.4s ease, outline 0.4s ease, border-left-color 0.4s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .twiller-source-highlight {
+    transition: none !important;
+  }
+}

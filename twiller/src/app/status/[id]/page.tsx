@@ -6,6 +6,7 @@ import { ArrowLeft, MessageCircle } from "lucide-react";
 import axiosInstance from "@/lib/axiosInstance";
 import { useAuth } from "@/context/AuthContext";
 import TweetCard from "@/components/TweetCard";
+import ConversationIntelligence from "@/components/ConversationIntelligence";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -173,6 +174,9 @@ export default function PostDetailPage() {
         </span>
       </div>
 
+      {/* Conversation Intelligence control/panel */}
+      <ConversationIntelligence postId={postId} replyCount={replies.length} />
+
       {/* Reply composer */}
       {user && (
         <div className="border-b border-gray-800 p-4">
@@ -223,7 +227,20 @@ export default function PostDetailPage() {
           </div>
         ) : (
           replies.map((reply) => (
-            <TweetCard key={reply._id} tweet={reply} onDeleted={(replyId) => setReplies((previous) => previous.filter((item) => item._id !== replyId))} />
+            <div
+              key={reply._id}
+              id={`reply-${reply._id}`}
+              data-post-id={reply._id}
+              tabIndex={-1}
+              className="outline-none"
+            >
+              <TweetCard
+                tweet={reply}
+                onDeleted={(replyId) =>
+                  setReplies((previous) => previous.filter((item) => item._id !== replyId))
+                }
+              />
+            </div>
           ))
         )}
       </div>

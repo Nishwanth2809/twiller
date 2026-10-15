@@ -16,7 +16,7 @@ function compile(relative, overrides) {
     DropdownMenuItem: "div", DropdownMenuSeparator: "div", DropdownMenuPortal: "div",
     DropdownMenuGroup: "div", DropdownMenuCheckboxItem: "div", DropdownMenuRadioGroup: "div",
   };
-  vm.runInThisContext(`(function(require,module,exports){${source}\n})`, { filename: filename.pathname })(name => name in overrides ? overrides[name] : name === "./ui/Skeletons" ? skeletons : name.endsWith("/ui/dropdown-menu") ? dropdownStubs : name.endsWith("/ui/AccessibleDialog") ? "AccessibleDialog" : ["./TopicSelector", "./TopicChips", "./TopicsDirectory", "./CircleSelector", "./CircleChip", "./CirclesDirectory", "./CircleCreateDialog", "./FeedRulesPanel"].includes(name) ? { __esModule: true, default: name.slice(2) } : require(name), module, module.exports);
+  vm.runInThisContext(`(function(require,module,exports){${source}\n})`, { filename: filename.pathname })(name => name in overrides ? overrides[name] : name === "./ui/Skeletons" ? skeletons : name.endsWith("/ui/dropdown-menu") ? dropdownStubs : name.endsWith("/ui/AccessibleDialog") ? "AccessibleDialog" : ["./TopicSelector", "./TopicChips", "./TopicsDirectory", "./CircleSelector", "./CircleChip", "./CirclesDirectory", "./CircleCreateDialog", "./FeedRulesPanel", "@/components/ConversationIntelligence", "./ConversationIntelligence"].includes(name) ? { __esModule: true, default: name.slice(2) } : require(name), module, module.exports);
   return module.exports;
 }
 function deferred() { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; }
