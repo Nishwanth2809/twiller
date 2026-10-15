@@ -5,6 +5,7 @@ import Circle from "./models/circle.js";
 import CircleMembership from "./models/circleMembership.js";
 import { cursorFilter, pageResult } from "./pagination.js";
 import { fail, PUBLIC_USER_FIELDS } from "./security.js";
+import { getActiveRules } from "./feed-rules-operations.js";
 
 export const FEED_MODES = ["foryou", "following", "topics", "circles"];
 
@@ -60,6 +61,36 @@ export async function getFeed(principal, query = {}) {
     baseQuery.circle = { $in: activeCircleIds };
   }
 
+  // Active Temporary Feed Rules (authenticated principal only)
+  let activeRules = [];
+  if (principal?._id) {
+    activeRules = await getActiveRules(principal._id);
+
+    // Rule: only_following
+    if (activeRules.some(r => r.ruleType === "only_following")) {
+      const allowedAuthors = [...(principal.following || []), principal._id];
+      baseQuery.author = { $in: allowedAuthors };
+    }
+
+    // Rule: hide_topic
+    const hiddenTopicIds = activeRules
+      .filter(r => r.ruleType === "hide_topic" && r.target)
+      .map(r => r.target._id || r.target);
+    if (hiddenTopicIds.length > 0) {
+      if (baseQuery.topics) {
+        baseQuery.topics.$nin = hiddenTopicIds;
+      } else {
+        baseQuery.topics = { $nin: hiddenTopicIds };
+      }
+    }
+
+    // Rule: hide_media
+    if (activeRules.some(r => r.ruleType === "hide_media")) {
+      baseQuery.image = { $in: [null, ""] };
+      baseQuery.audio = { $in: [null, ""] };
+    }
+  }
+
   const rows = await Tweet.find(baseQuery)
     .sort({ timestamp: -1, _id: -1 })
     .skip(query.cursor ? 0 : (Number(query.page || 1) - 1) * limit)
@@ -73,5 +104,6 @@ export async function getFeed(principal, query = {}) {
     nextCursor: result.nextCursor,
     page: Number(query.page || 1),
     mode,
+    activeRulesCount: principal?._id ? activeRules.length : 0,
   };
 }

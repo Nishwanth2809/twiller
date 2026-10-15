@@ -24,6 +24,7 @@ import { deliverEmail, smtpMailOptions } from "./mail.js";
 import { quotaState, transaction } from "./quota.js";
 import { createPost, deletePost, follow } from "./post-operations.js";
 import { getFeed } from "./feed-operations.js";
+import { createFeedRule, deleteFeedRule, listActiveFeedRules } from "./feed-rules-operations.js";
 import { toggleReaction, toggleBookmark } from "./reactions.js";
 import { normalizeHandle, pairKey } from "./handles.js";
 import { cursorFilter, pageResult, literalSearch } from "./pagination.js";
@@ -499,6 +500,20 @@ app.delete("/post/:id", boundary("DELETE /post/:id", securityDependencies), asyn
 // Get tweet feed with pagination (modes: foryou, following, topics, circles)
 app.get("/feed", boundary("GET /feed", securityDependencies), async (req, res) => {
   res.json(await getFeed(req.principal, req.query));
+});
+
+// Feed Rules: temporary principal-bound safe filtering rules
+app.get("/feed-rules", boundary("GET /feed-rules", securityDependencies), async (req, res) => {
+  res.json(await listActiveFeedRules(req.principal));
+});
+
+app.post("/feed-rules", boundary("POST /feed-rules", securityDependencies), async (req, res) => {
+  const result = await createFeedRule(req.principal, req.body);
+  res.status(result.isNew ? 201 : 200).json(result.rule);
+});
+
+app.delete("/feed-rules/:id", boundary("DELETE /feed-rules/:id", securityDependencies), async (req, res) => {
+  res.json(await deleteFeedRule(req.principal, req.params.id));
 });
 
 // Create a reply to a tweet

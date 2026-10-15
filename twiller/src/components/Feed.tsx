@@ -12,8 +12,9 @@ import TweetCard from "./TweetCard";
 import TweetComposer from "./TweetComposer";
 import axiosInstance from "@/lib/axiosInstance";
 import { useAuth } from "@/context/AuthContext";
-import { Feather, ChevronDown, Check } from "lucide-react";
+import { Feather, ChevronDown, Check, SlidersHorizontal } from "lucide-react";
 import { PostSkeleton } from "./ui/Skeletons";
+import FeedRulesPanel, { type FeedRule } from "./FeedRulesPanel";
 
 export type FeedMode = "foryou" | "following" | "topics" | "circles";
 
@@ -91,9 +92,45 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [feedError, setFeedError] = useState("");
   const [postAnnouncement, setPostAnnouncement] = useState("");
+  const [rulesCount, setRulesCount] = useState(0);
+  const [feedRules, setFeedRules] = useState<FeedRule[]>([]);
+  const [rulesPanelOpen, setRulesPanelOpen] = useState(false);
   const requestId = useRef(0);
   const loadingMoreRef = useRef(false);
   const announcementTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fetchFeedRules = useCallback(async () => {
+    if (!user?._id) {
+      setFeedRules([]);
+      setRulesCount(0);
+      return;
+    }
+    try {
+      const res = await axiosInstance.get("/feed-rules");
+      const fetched = res.data?.rules || [];
+      setFeedRules(fetched);
+      setRulesCount(fetched.length);
+    } catch {
+      // ignore
+    }
+  }, [user?._id]);
+
+  useEffect(() => {
+    if (rulesPanelOpen) {
+      fetchFeedRules();
+    }
+  }, [rulesPanelOpen, fetchFeedRules]);
+
+  const handleRuleCreated = () => {
+    fetchFeedRules();
+    fetchTweets(mode, null, true);
+  };
+
+  const handleRuleDeleted = (deletedId: string) => {
+    setFeedRules((prev) => prev.filter((r) => r._id !== deletedId));
+    fetchFeedRules();
+    fetchTweets(mode, null, true);
+  };
 
   const announcePost = useCallback(() => {
     setPostAnnouncement("Post published");
@@ -117,7 +154,10 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
       });
 
       if (requestId.current !== id) return;
-      const { tweets: newTweets, hasMore: more, nextCursor: cursorAfter } = res.data;
+      const { tweets: newTweets, hasMore: more, nextCursor: cursorAfter, activeRulesCount } = res.data;
+      if (typeof activeRulesCount === "number") {
+        setRulesCount(activeRulesCount);
+      }
 
       if (replace) {
         setTweets(newTweets);
@@ -222,42 +262,67 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
       {/* Sticky feed header with Home and compact workspace control */}
       <div className="sticky top-0 bg-black/90 backdrop-blur-md border-b border-gray-800 z-10 px-4 py-3 flex items-center justify-between">
         <h1 className="text-xl font-bold text-white tracking-tight">Home</h1>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label="Feed mode selector"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-700 bg-gray-900/80 hover:bg-gray-800 text-sm font-medium text-gray-200 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 max-w-[180px] sm:max-w-none"
+        <div className="flex items-center gap-2">
+          {/* Feed mode selector */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label="Feed mode selector"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-700 bg-gray-900/80 hover:bg-gray-800 text-sm font-medium text-gray-200 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 max-w-[140px] sm:max-w-none"
+              >
+                <span className="truncate">{currentModeLabel}</span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-48 bg-gray-950 border border-gray-800 text-gray-200 shadow-xl p-1 z-50 rounded-lg"
             >
-              <span className="truncate">{currentModeLabel}</span>
-              <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className="w-48 bg-gray-950 border border-gray-800 text-gray-200 shadow-xl p-1 z-50 rounded-lg"
+              {FEED_MODES.map((item) => {
+                const isDisabled = !user && item.id !== "foryou";
+                return (
+                  <DropdownMenuItem
+                    key={item.id}
+                    disabled={isDisabled}
+                    onSelect={() => handleModeChange(item.id)}
+                    onClick={() => handleModeChange(item.id)}
+                    className={`flex items-center justify-between cursor-pointer px-3 py-2 text-sm rounded-md transition-colors ${
+                      isDisabled
+                        ? "opacity-50 cursor-not-allowed"
+                        : "hover:bg-gray-800 focus:bg-gray-800"
+                    } ${mode === item.id ? "text-blue-400 font-semibold" : "text-gray-200"}`}
+                  >
+                    <span>{item.label}</span>
+                    {mode === item.id && <Check className="h-4 w-4 text-blue-400" />}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Feed Rules Control */}
+          <button
+            type="button"
+            aria-label="Feed rules"
+            disabled={!user}
+            onClick={() => setRulesPanelOpen(true)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+              !user
+                ? "border-gray-800 bg-gray-900/40 text-gray-500 cursor-not-allowed"
+                : rulesCount > 0
+                ? "border-blue-500/40 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 font-semibold"
+                : "border-gray-700 bg-gray-900/80 hover:bg-gray-800 text-gray-200 hover:text-white"
+            }`}
           >
-            {FEED_MODES.map((item) => {
-              const isDisabled = !user && item.id !== "foryou";
-              return (
-                <DropdownMenuItem
-                  key={item.id}
-                  disabled={isDisabled}
-                  onSelect={() => handleModeChange(item.id)}
-                  onClick={() => handleModeChange(item.id)}
-                  className={`flex items-center justify-between cursor-pointer px-3 py-2 text-sm rounded-md transition-colors ${
-                    isDisabled
-                      ? "opacity-50 cursor-not-allowed"
-                      : "hover:bg-gray-800 focus:bg-gray-800"
-                  } ${mode === item.id ? "text-blue-400 font-semibold" : "text-gray-200"}`}
-                >
-                  <span>{item.label}</span>
-                  {mode === item.id && <Check className="h-4 w-4 text-blue-400" />}
-                </DropdownMenuItem>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+            <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">
+              {rulesCount > 0
+                ? `${rulesCount} Feed Rule${rulesCount > 1 ? "s" : ""}`
+                : "Feed Rules"}
+            </span>
+          </button>
+        </div>
       </div>
 
       <TweetComposer key={user?._id || "public"} onTweetPosted={handleNewTweet} onNavigate={onNavigate} />
@@ -319,6 +384,14 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
           </>
         )}
       </div>
+
+      <FeedRulesPanel
+        open={rulesPanelOpen}
+        onClose={() => setRulesPanelOpen(false)}
+        rules={feedRules}
+        onRuleCreated={handleRuleCreated}
+        onRuleDeleted={handleRuleDeleted}
+      />
     </div>
   );
 };
