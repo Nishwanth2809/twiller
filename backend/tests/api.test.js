@@ -192,3 +192,48 @@ test("TW-007: actual delivery helper failure removes challenge and does not gran
     assert.equal(JSON.stringify(result.data).includes("credentials"), false);
   } finally { mailDependencies.send = previous; }
 });
+
+test("TW-003/TW-008: public posts are queryable anonymously and cross-account without browser state dependency", async () => {
+  const authorId = "333333333333333333333333";
+  const postDoc = {
+    _id: "444444444444444444444444",
+    author: { _id: authorId, username: "public_author", displayName: "Author", avatar: "" },
+    content: "Persistent public post content",
+    image: null,
+    audio: null,
+    timestamp: new Date(),
+    parentId: null,
+    likes: 0,
+    retweets: 0,
+    comments: 0,
+    likedBy: [],
+    retweetedBy: [],
+    topics: [],
+    circle: null
+  };
+  const mockQuery = {
+    sort() { return this; },
+    skip() { return this; },
+    limit() { return this; },
+    populate() { this.result = [postDoc]; return this; },
+    then(resolve) { return Promise.resolve(this.result).then(resolve); }
+  };
+  substitute(Tweet, "find", () => Object.create(mockQuery));
+  substitute(User, "findOne", () => Promise.resolve({ _id: authorId, username: "public_author" }));
+
+  // Anonymous request (no auth header, fresh client, different browser)
+  const anonFeed = await request("/feed?type=foryou", "GET", undefined, null);
+  assert.equal(anonFeed.status, 200);
+  assert.equal(anonFeed.data.tweets.length, 1);
+  assert.equal(anonFeed.data.tweets[0].content, "Persistent public post content");
+
+  // Other authenticated user request
+  const otherFeed = await request("/feed?type=foryou", "GET", undefined, "valid");
+  assert.equal(otherFeed.status, 200);
+  assert.equal(otherFeed.data.tweets[0].content, "Persistent public post content");
+
+  // User profile posts route
+  const profilePosts = await request("/users/public_author/posts", "GET", undefined, null);
+  assert.equal(profilePosts.status, 200);
+  assert.equal(profilePosts.data[0].content, "Persistent public post content");
+});
