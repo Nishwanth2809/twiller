@@ -427,7 +427,7 @@ app.post("/forgot-password", boundary("POST /forgot-password", securityDependenc
     await mailDependencies.send({ to: recoveryEmail, subject: "Twiller - Reset your password", html: `<p>Use this link to choose a new password:</p><a href="${link.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}">Reset password</a>` });
     }
   } catch (err) {
-    if (err.code !== "auth/user-not-found") fail(503, "RECOVERY_UNAVAILABLE", "We could not send a reset link. Please retry later");
+    if (err.code !== "auth/user-not-found" && err.code !== "auth/email-not-found") fail(503, "RECOVERY_UNAVAILABLE", "We could not send a reset link. Please retry later");
   }
   res.json({ success: true, message: "If the account supports password sign-in, a reset link has been sent. Your password changes only after you use that link." });
 });

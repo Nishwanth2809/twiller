@@ -139,9 +139,11 @@ test("TW-004: recovery only requests a provider proof link; delivery/unknown acc
     assert.equal((await request("/forgot-password", "POST", { email: token.email, oobCode: proof, password: "attempted-replacement" }, null)).status, 400);
     assert.equal(JSON.stringify(users.get(id)), before);
   }
-  mailDependencies.resetLink = async () => { throw Object.assign(new Error("unknown"), { code: "auth/user-not-found" }); };
-  const unknown = await request("/forgot-password", "POST", { email: "unknown@example.test" }, null);
-  assert.deepEqual(unknown, response);
+  for (const code of ["auth/user-not-found", "auth/email-not-found"]) {
+    mailDependencies.resetLink = async () => { throw Object.assign(new Error("unknown"), { code }); };
+    const unknown = await request("/forgot-password", "POST", { email: "unknown@example.test" }, null);
+    assert.deepEqual(unknown, response);
+  }
   mailDependencies.resetLink = async () => "https://example.test/reset";
   mailDependencies.send = async () => { throw new Error("delivery failed"); };
   assert.equal((await request("/forgot-password", "POST", { email: token.email }, null)).status, 503);
