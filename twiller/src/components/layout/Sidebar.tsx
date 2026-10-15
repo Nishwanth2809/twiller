@@ -13,6 +13,7 @@ import {
   Settings,
   LogOut,
   Crown,
+  Shield,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -77,6 +78,17 @@ export default function Sidebar({
       page: "subscription",
       planColor: user ? PLAN_COLORS[user.plan || "free"] : "text-gray-400",
     },
+    ...(user?.role === "admin"
+      ? [
+          {
+            name: "Admin",
+            icon: Shield,
+            current: currentPage === "admin",
+            page: "admin",
+            planColor: "text-rose-400 hover:text-rose-300 font-semibold",
+          },
+        ]
+      : []),
   ];
 
   return (

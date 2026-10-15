@@ -38,6 +38,8 @@ interface User {
   followers: string[];
   following: string[];
   bookmarks: string[];
+  role?: "user" | "admin";
+  accountStatus?: "active" | "suspended" | "frozen" | "deleted";
 }
 
 

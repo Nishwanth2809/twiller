@@ -35,6 +35,7 @@ import { prepareIndexes } from "./readiness.js";
 import { storeMedia, readMedia, mediaByteRange, attachMedia, AUDIO_MAX } from "./media.js";
 import Media from "./models/media.js";
 import { pathToFileURL } from "node:url";
+import { listAdminUsers, getAdminUserDetail, setAdminUserStatus, deleteAdminUser, deleteAdminPost } from "./admin-operations.js";
 
 if (process.env.NODE_ENV !== "test") dotenv.config({ quiet: true });
 dns.setDefaultResultOrder("ipv4first");
@@ -798,6 +799,41 @@ app.get("/media/:id", async (req, res, next) => {
 
 app.get("/admin/overview", boundary("GET /admin/overview", securityDependencies), requireAdmin, async (req, res) => {
   res.json({ status: "ok", admin: req.principal.username });
+});
+
+app.get("/admin/users", boundary("GET /admin/users", securityDependencies), requireAdmin, async (req, res, next) => {
+  try {
+    const result = await listAdminUsers({ limit: req.query.limit, cursor: req.query.cursor, q: req.query.q });
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
+app.get("/admin/users/:id", boundary("GET /admin/users/:id", securityDependencies), requireAdmin, async (req, res, next) => {
+  try {
+    const result = await getAdminUserDetail(req.params.id);
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
+app.patch("/admin/users/:id/status", boundary("PATCH /admin/users/:id/status", securityDependencies), requireAdmin, async (req, res, next) => {
+  try {
+    const result = await setAdminUserStatus(req.principal._id, req.params.id, req.body.status, req.body.reason);
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
+app.delete("/admin/users/:id", boundary("DELETE /admin/users/:id", securityDependencies), requireAdmin, async (req, res, next) => {
+  try {
+    const result = await deleteAdminUser(req.principal._id, req.params.id, req.body.reason);
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
+app.delete("/admin/posts/:id", boundary("DELETE /admin/posts/:id", securityDependencies), requireAdmin, async (req, res, next) => {
+  try {
+    const result = await deleteAdminPost(req.principal._id, req.params.id, req.body.reason);
+    res.json(result);
+  } catch (err) { next(err); }
 });
 
 registerTopicRoutes(app, key => boundary(key, securityDependencies));

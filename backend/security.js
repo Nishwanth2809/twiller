@@ -112,6 +112,11 @@ const specs = {
   "GET /unread-count/:userId": { params: { userId: id } },
   "POST /media-upload": { query: { kind: choice(["image","audio"]) } },
   "GET /admin/overview": { admin: true },
+  "GET /admin/users": { admin: true, query: { limit: integer(50), cursor, q: str(100) } },
+  "GET /admin/users/:id": { admin: true, params: { id } },
+  "PATCH /admin/users/:id/status": { admin: true, params: { id }, body: { status: choice(["active", "frozen", "suspended"]), reason: str(500) }, required: ["status"] },
+  "DELETE /admin/users/:id": { admin: true, params: { id }, body: { reason: str(500) } },
+  "DELETE /admin/posts/:id": { admin: true, params: { id }, body: { reason: str(500) } },
 };
 function validateObject(value, rules = {}, required = []) {
   if (!value || typeof value !== "object" || Array.isArray(value)) fail(400, "INVALID_INPUT", "Expected an object");
@@ -155,7 +160,7 @@ export function boundary(key, dependencies) {
       req.principal = user;
       if (spec.admin && user.role !== "admin") fail(403, "ADMIN_REQUIRED", "Administrator access required");
       const isMutation = ["POST", "PUT", "PATCH", "DELETE"].includes(req.method);
-      if (user.accountStatus === "suspended" && isMutation && !spec.allowSuspended) {
+      if (["suspended", "frozen", "deleted"].includes(user.accountStatus) && isMutation && !spec.allowSuspended) {
         fail(403, "ACCOUNT_SUSPENDED", "Your account is suspended.");
       }
       const ownId = String(user._id);

@@ -13,6 +13,7 @@ import ExplorePage from "../ExplorePage";
 import NotificationsPage from "../NotificationsPage";
 import SettingsPage from "../SettingsPage";
 import MessagesPage from "../MessagesPage";
+import AdminPage from "../AdminPage";
 import TweetComposer from "../TweetComposer";
 import axiosInstance from "@/lib/axiosInstance";
 import MobileMoreMenu from "./MobileMoreMenu";
@@ -58,7 +59,8 @@ type Page =
   | "bookmarks"
   | "profile"
   | "settings"
-  | "subscription";
+  | "subscription"
+  | "admin";
 
 const Mainlayout = ({ children }: { children: React.ReactNode }) => {
   const { user, isLoading, status, refreshUser, isDemoMode } = useAuth();
@@ -92,7 +94,7 @@ const Mainlayout = ({ children }: { children: React.ReactNode }) => {
       if (window.location.pathname === "/explore") { setCurrentPage("explore"); return; }
       if (window.location.pathname === "/settings") { setCurrentPage("settings"); return; }
       const requested = new URLSearchParams(window.location.search).get("view") as Page | null;
-      const pages: Page[] = ["home", "explore", "search", "notifications", "messages", "bookmarks", "profile", "settings", "subscription"];
+      const pages: Page[] = ["home", "explore", "search", "notifications", "messages", "bookmarks", "profile", "settings", "subscription", "admin"];
       if (requested && pages.includes(requested)) setCurrentPage(requested);
       else setCurrentPage("home");
     };
@@ -117,9 +119,10 @@ const Mainlayout = ({ children }: { children: React.ReactNode }) => {
     if (kind === "user" && value) { router.push(`/${encodeURIComponent(value)}`); return; }
     if (kind === "status" && value) { router.push(`/status/${encodeURIComponent(value)}`); return; }
     const target = (kind === "profile" && user ? "profile" : kind) as Page;
-    const pages: Page[] = ["home", "explore", "search", "notifications", "messages", "bookmarks", "profile", "settings", "subscription"];
+    const pages: Page[] = ["home", "explore", "search", "notifications", "messages", "bookmarks", "profile", "settings", "subscription", "admin"];
     if (!pages.includes(target)) return;
     if (!user && target !== "home" && target !== "search") { router.push("/"); return; }
+    if (target === "admin" && user?.role !== "admin") { router.push("/"); return; }
     setShowComposer(false);
     setCurrentPage(target);
     router.push(target === "home" ? "/" : target === "search" ? "/search" : target === "explore" ? "/explore" : `/?view=${target}`, { scroll: false });
@@ -150,6 +153,8 @@ const Mainlayout = ({ children }: { children: React.ReactNode }) => {
         return <SettingsPage onNavigate={navigate} />;
       case "messages":
         return <MessagesPage onNavigate={navigate} />;
+      case "admin":
+        return user?.role === "admin" ? <AdminPage /> : <ProfilePage />;
       default: {
         // Home — pass onNavigate to children via cloneElement
         if (React.isValidElement(children)) {

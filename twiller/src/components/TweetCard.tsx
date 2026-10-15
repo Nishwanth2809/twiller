@@ -158,7 +158,11 @@ export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onB
   const handleDelete = async () => {
     if (!user) return;
     try {
-      await axiosInstance.delete(`/post/${tweetState._id}`, { data: { userId: user._id } });
+      if (isOwner) {
+        await axiosInstance.delete(`/post/${tweetState._id}`, { data: { userId: user._id } });
+      } else if (user.role === "admin") {
+        await axiosInstance.delete(`/admin/posts/${tweetState._id}`, { data: { reason: "Moderator post removal" } });
+      }
       if (onDeleted) onDeleted(tweetState._id);
       else router.push("/");
     } catch (err) {
@@ -312,7 +316,7 @@ export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onB
                       <LinkIcon className="h-4 w-4" />
                       Copy link
                     </DropdownMenuItem>
-                    {isOwner && (
+                    {(isOwner || user?.role === "admin") && (
                       <>
                         <DropdownMenuSeparator className="bg-gray-800" />
                         <DropdownMenuItem
@@ -323,7 +327,7 @@ export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onB
                           }}
                         >
                           <Trash2 className="h-4 w-4" />
-                          Delete post
+                          {isOwner ? "Delete post" : "Delete post (Admin)"}
                         </DropdownMenuItem>
                       </>
                     )}
