@@ -13,6 +13,7 @@ import TopicFollow from "./models/topicFollow.js";
 import Circle from "./models/circle.js";
 import CircleMembership from "./models/circleMembership.js";
 import FeedRule from "./models/feedRule.js";
+import ConversationInsight from "./models/conversationInsight.js";
 import { RESERVED } from "./handles.js";
 
 export async function auditIntegrity() {
@@ -30,7 +31,7 @@ export async function auditIntegrity() {
 export async function prepareIndexes(production) {
   const audit=await auditIntegrity();
   if(Object.values(audit).some(Boolean))throw Error("Phase 2 identity/conversation audit requires reconciliation before constraints");
-  const models=[User,Subscription,LoginSession,Conversation,Message,Tweet,Challenge,Throttle,Media,Notification,Topic,TopicFollow,Circle,CircleMembership,FeedRule];
+  const models=[User,Subscription,LoginSession,Conversation,Message,Tweet,Challenge,Throttle,Media,Notification,Topic,TopicFollow,Circle,CircleMembership,FeedRule,ConversationInsight];
   if(!production) { for(const model of models)await model.createIndexes(); return; }
   // Production startup: verify schema-defined indexes exist in Atlas
   for(const model of models) {
@@ -43,7 +44,7 @@ export async function prepareIndexes(production) {
       }
       // Warn on incompatibilities but don't block startup
       if(!!match.unique!==!!options.unique) {
-        if ([Topic, TopicFollow, Circle, CircleMembership, FeedRule].includes(model)) throw Error(`Required uniqueness constraint missing on ${model.modelName}`);
+        if ([Topic, TopicFollow, Circle, CircleMembership, FeedRule, ConversationInsight].includes(model)) throw Error(`Required uniqueness constraint missing on ${model.modelName}`);
         console.warn(`⚠️  Index uniqueness mismatch on ${model.modelName}: ${JSON.stringify(key)}`);
       }
     }

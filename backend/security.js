@@ -15,6 +15,7 @@ export function userView(user, privateView = false) {
 export const sessionId = token => crypto.createHash("sha256").update(`${token.uid}:${token.auth_time}`).digest("hex");
 export const otpHash = (id, otp) => crypto.createHash("sha256").update(`${id}:${otp}`).digest("hex");
 const id = value => typeof value === "string" && /^[a-f\d]{24}$/i.test(value);
+const postId = value => { if (id(value)) return true; fail(400, "INVALID_POST_ID", "Invalid post ID format"); };
 const str = (max, min = 0) => value => typeof value === "string" && value.length <= max && value.trim().length >= min;
 const email = value => str(254, 3)(value) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 const recoveryIdentifier = value => email(value) || typeof value === "string" && /^\+?[0-9 ()-]{7,25}$/.test(value) && value.replace(/\D/g, "").length >= 7 && value.replace(/\D/g, "").length <= 15;
@@ -62,6 +63,8 @@ const specs = {
   "DELETE /feed-rules/:id": { params: { id } },
   "POST /post/:id/reply": { params: { id }, body: { author: id, content: str(200, 1) }, required: ["content"] },
   "GET /post/:id/replies": { public: true, params: { id }, query: collectionQuery },
+  "GET /post/:id/intelligence": { public: true, optionalAuth: true, params: { id: postId } },
+  "POST /post/:id/intelligence": { params: { id: postId }, body: {} },
   "GET /users/:username": { public: true, params: { username: str(50, 1) } },
   "GET /users/:username/posts": { public: true, params: { username: str(50, 1) }, query: collectionQuery },
   "GET /users/:username/followers": { public: true, params: { username: str(50, 1) }, query: collectionQuery },

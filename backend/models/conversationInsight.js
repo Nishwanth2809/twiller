@@ -26,6 +26,7 @@ const schema = new mongoose.Schema({
   generatedAt: { type: Date, default: null },
   generatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
   model: { type: String, default: "mock-v1" },
+  lastGenerationErrorCode: { type: String, default: null },
 }, { timestamps: true });
 
 schema.index({ post: 1, scopeKey: 1 }, { unique: true });

@@ -2,12 +2,61 @@ import crypto from "crypto";
 import mongoose from "mongoose";
 import Tweet from "./models/tweet.js";
 import ConversationInsight from "./models/conversationInsight.js";
+import Circle from "./models/circle.js";
 import { MockIntelligenceProvider } from "./intelligence-provider.js";
+import { rateLimit } from "./challenges.js";
+import { fail, HttpError } from "./security.js";
 
 export const MAX_ANALYZED_REPLIES = 50;
 export const MIN_ANALYSIS_REPLIES = 2;
 export const MAX_TRAVERSAL_DEPTH = 8;
 export const LEASE_DURATION_MS = 30000;
+export const PROVIDER_TIMEOUT_MS = 8000;
+export const USER_RATE_LIMIT = 10;
+export const USER_RATE_WINDOW_MS = 3600000;
+export const POST_COOLDOWN_MS = 60000;
+
+let activeProvider = new MockIntelligenceProvider();
+
+export function getIntelligenceProvider() {
+  return activeProvider;
+}
+
+export function setIntelligenceProvider(provider) {
+  activeProvider = provider;
+}
+
+export function resetIntelligenceProvider() {
+  activeProvider = new MockIntelligenceProvider();
+}
+
+/**
+ * Format a ConversationInsight document for safe client consumption.
+ * Normalizes ObjectIds and ensures predictable structure.
+ */
+export function insightView(insight) {
+  if (!insight) return null;
+  const doc = insight.toObject ? insight.toObject() : insight;
+  return {
+    _id: doc._id,
+    post: doc.post,
+    scopeKey: doc.scopeKey,
+    status: doc.status,
+    overview: doc.overview,
+    keyPoints: (doc.keyPoints || []).map(kp => ({
+      statement: kp.statement,
+      sourcePostIds: (kp.sourcePostIds || []).map(String),
+    })),
+    perspectives: (doc.perspectives || []).map(p => ({
+      viewpoint: p.viewpoint,
+      sourcePostIds: (p.sourcePostIds || []).map(String),
+    })),
+    analyzedReplyCount: doc.analyzedReplyCount,
+    latestReplyTimestamp: doc.latestReplyTimestamp,
+    generatedAt: doc.generatedAt,
+    model: doc.model,
+  };
+}
 
 /**
  * Collect bounded descendant replies for a root post.
@@ -270,6 +319,7 @@ export async function acquireGenerationLease(postId, options = {}) {
         $or: [
           { status: { $ne: "generating" } },
           { leaseExpiresAt: { $lt: now } },
+          { leaseExpiresAt: null },
         ],
       },
       {
@@ -277,6 +327,7 @@ export async function acquireGenerationLease(postId, options = {}) {
           status: "generating",
           leaseExpiresAt,
           generatedBy,
+          lastGenerationErrorCode: null,
         },
       },
       { new: true }
@@ -297,10 +348,34 @@ export async function acquireGenerationLease(postId, options = {}) {
       status: "generating",
       leaseExpiresAt,
       generatedBy,
+      lastGenerationErrorCode: null,
     });
     return { acquired: true, record: created };
   } catch (err) {
     if (err.code === 11000) {
+      const updated = await InsightModel.findOneAndUpdate(
+        {
+          post: postId,
+          scopeKey,
+          $or: [
+            { status: { $ne: "generating" } },
+            { leaseExpiresAt: { $lt: now } },
+            { leaseExpiresAt: null },
+          ],
+        },
+        {
+          $set: {
+            status: "generating",
+            leaseExpiresAt,
+            generatedBy,
+            lastGenerationErrorCode: null,
+          },
+        },
+        { new: true }
+      );
+      if (updated) {
+        return { acquired: true, record: updated };
+      }
       const raceExisting = await InsightModel.findOne({ post: postId, scopeKey });
       return { acquired: false, record: raceExisting };
     }
@@ -327,6 +402,7 @@ export async function commitInsight(postId, scopeKey, insightData, options = {})
         latestReplyTimestamp: insightData.latestReplyTimestamp,
         generatedAt: new Date(),
         model: insightData.model || "mock-v1",
+        lastGenerationErrorCode: null,
       },
     },
     { new: true }
@@ -338,12 +414,14 @@ export async function commitInsight(postId, scopeKey, insightData, options = {})
  */
 export async function failInsightLease(postId, scopeKey, options = {}) {
   const InsightModel = options.insightModel || ConversationInsight;
+  const errorCode = options.errorCode || "INSIGHT_GENERATION_FAILED";
   return await InsightModel.findOneAndUpdate(
     { post: postId, scopeKey },
     {
       $set: {
         status: "failed",
         leaseExpiresAt: null,
+        lastGenerationErrorCode: errorCode,
       },
     },
     { new: true }
@@ -351,7 +429,209 @@ export async function failInsightLease(postId, scopeKey, options = {}) {
 }
 
 /**
- * Execute conversation intelligence generation workflow.
+ * Read-only retrieval of conversation intelligence for a post.
+ * Strictly read-only; never triggers generation.
+ *
+ * @param {string|mongoose.Types.ObjectId} postId
+ * @param {Object} [options]
+ * @returns {Promise<Object>}
+ */
+export async function getIntelligenceForPost(postId, options = {}) {
+  const TweetModel = options.tweetModel || Tweet;
+  const InsightModel = options.insightModel || ConversationInsight;
+  const CircleModel = options.circleModel || Circle;
+
+  const rootPost = await TweetModel.findById(postId);
+  if (!rootPost || rootPost.deletedAt) {
+    fail(404, "POST_NOT_FOUND", "Post not found or unavailable");
+  }
+
+  if (rootPost.circle) {
+    const circle = await CircleModel.findById(rootPost.circle).select("_id status visibility");
+    if (!circle || circle.status !== "active") {
+      fail(404, "POST_NOT_FOUND", "Post not found or unavailable");
+    }
+  }
+
+  const { sources, activeSources } = await collectBoundedThreadSources(rootPost._id, {
+    tweetModel: TweetModel,
+    ...options,
+  });
+
+  if (activeSources.length < MIN_ANALYSIS_REPLIES) {
+    return {
+      status: "not_enough_replies",
+      minimumReplies: MIN_ANALYSIS_REPLIES,
+    };
+  }
+
+  const currentFingerprint = computeSourceFingerprint(rootPost, sources);
+  const cached = await InsightModel.findOne({ post: rootPost._id, scopeKey: options.scopeKey || "public" });
+
+  if (!cached || cached.status !== "completed") {
+    return {
+      status: "none",
+    };
+  }
+
+  if (cached.fingerprint === currentFingerprint) {
+    return {
+      status: "available",
+      insight: insightView(cached),
+    };
+  }
+
+  const diff = Math.max(0, activeSources.length - (cached.analyzedReplyCount || 0));
+  const sourceCountDifference = Math.abs(activeSources.length - (cached.analyzedReplyCount || 0));
+  return {
+    status: "stale",
+    insight: insightView(cached),
+    newRepliesCount: diff,
+    sourceCountDifference,
+  };
+}
+
+/**
+ * Request intelligence generation for a post.
+ * Reuses fresh cache, or enforces rate limits and acquires DB lease to generate.
+ *
+ * @param {string|mongoose.Types.ObjectId} postId
+ * @param {Object} user - Authenticated user principal
+ * @param {Object} [options]
+ * @returns {Promise<{ statusCode: number, body: Object }>}
+ */
+export async function requestIntelligenceGeneration(postId, user, options = {}) {
+  const TweetModel = options.tweetModel || Tweet;
+  const InsightModel = options.insightModel || ConversationInsight;
+  const CircleModel = options.circleModel || Circle;
+  const scopeKey = options.scopeKey || "public";
+  const provider = options.provider || getIntelligenceProvider();
+  const timeoutMs = options.timeoutMs || PROVIDER_TIMEOUT_MS;
+
+  const rootPost = await TweetModel.findById(postId);
+  if (!rootPost || rootPost.deletedAt) {
+    fail(404, "POST_NOT_FOUND", "Post not found or unavailable");
+  }
+
+  if (rootPost.circle) {
+    const circle = await CircleModel.findById(rootPost.circle).select("_id status visibility");
+    if (!circle || circle.status !== "active") {
+      fail(404, "POST_NOT_FOUND", "Post not found or unavailable");
+    }
+  }
+
+  const { sources, activeSources } = await collectBoundedThreadSources(rootPost._id, {
+    tweetModel: TweetModel,
+    ...options,
+  });
+
+  if (activeSources.length < MIN_ANALYSIS_REPLIES) {
+    fail(400, "NOT_ENOUGH_REPLIES", `Thread has ${activeSources.length} replies; minimum ${MIN_ANALYSIS_REPLIES} required for intelligence`);
+  }
+
+  const currentFingerprint = computeSourceFingerprint(rootPost, sources);
+
+  // Check if fresh cached insight exists
+  const existing = await InsightModel.findOne({ post: rootPost._id, scopeKey });
+  if (existing && existing.status === "completed" && existing.fingerprint === currentFingerprint) {
+    return {
+      statusCode: 200,
+      body: {
+        status: "available",
+        insight: insightView(existing),
+        fresh: true,
+      },
+    };
+  }
+
+  // Rate limiting (only on actual generation attempts):
+  // User: 10 attempts/hour
+  // Post: 1 generation / 60 seconds
+  const userId = user?._id ? String(user._id) : (options.userId || "anonymous");
+  await rateLimit(`intelligence-user:${userId}`, USER_RATE_LIMIT, USER_RATE_WINDOW_MS);
+  await rateLimit(`intelligence-post:${String(rootPost._id)}`, 1, POST_COOLDOWN_MS);
+
+  // Acquire DB lease
+  const leaseResult = await acquireGenerationLease(rootPost._id, {
+    scopeKey,
+    generatedBy: user?._id || null,
+    leaseDurationMs: options.leaseDurationMs || LEASE_DURATION_MS,
+    insightModel: InsightModel,
+  });
+
+  if (!leaseResult.acquired) {
+    fail(409, "INSIGHT_GENERATION_IN_PROGRESS", "Generation is currently in progress for this conversation");
+  }
+
+  let timer;
+  try {
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        const err = new Error("Intelligence provider generation timed out");
+        err.code = "INTELLIGENCE_PROVIDER_TIMEOUT";
+        err.status = 504;
+        reject(err);
+      }, timeoutMs);
+      if (timer.unref) timer.unref();
+    });
+
+    const generationPromise = provider.generateThreadInsight({
+      rootPost,
+      sources: activeSources,
+      topicContext: rootPost.topics,
+      circleContext: rootPost.circle,
+    });
+
+    const generated = await Promise.race([generationPromise, timeoutPromise]);
+    if (timer) clearTimeout(timer);
+
+    const validSourceIds = new Set(activeSources.map(s => String(s._id)));
+    const validated = validateInsightGrounding(generated, validSourceIds);
+
+    const latestReply = activeSources[activeSources.length - 1];
+    const isNew = !existing || existing.status !== "completed";
+
+    const committed = await commitInsight(rootPost._id, scopeKey, {
+      ...validated,
+      fingerprint: currentFingerprint,
+      analyzedReplyCount: activeSources.length,
+      latestReplyTimestamp: latestReply.timestamp,
+    }, { insightModel: InsightModel });
+
+    return {
+      statusCode: isNew ? 201 : 200,
+      body: {
+        status: "available",
+        insight: insightView(committed),
+        fresh: true,
+        ...(isNew ? { isNew: true } : { refreshed: true }),
+      },
+    };
+  } catch (err) {
+    if (timer) clearTimeout(timer);
+    await failInsightLease(rootPost._id, scopeKey, {
+      errorCode: err.code || "INSIGHT_GENERATION_FAILED",
+      insightModel: InsightModel,
+    });
+
+    if (err.code === "INTELLIGENCE_PROVIDER_TIMEOUT") {
+      fail(504, "INTELLIGENCE_PROVIDER_TIMEOUT", "Intelligence provider request timed out");
+    }
+    if (err.code === "INSIGHT_GROUNDING_FAILED") {
+      fail(422, "INSIGHT_GROUNDING_FAILED", err.message);
+    }
+    if (err.code === "NOT_ENOUGH_REPLIES") {
+      fail(400, "NOT_ENOUGH_REPLIES", err.message);
+    }
+    if (err instanceof HttpError) {
+      throw err;
+    }
+    fail(502, "INTELLIGENCE_PROVIDER_UNAVAILABLE", "Intelligence provider is currently unavailable");
+  }
+}
+
+/**
+ * Execute conversation intelligence generation workflow (Batch 5A compatibility).
  *
  * @param {string|mongoose.Types.ObjectId} rootPostId
  * @param {Object} [options]
@@ -361,7 +641,7 @@ export async function failInsightLease(postId, scopeKey, options = {}) {
  * @returns {Promise<Object>}
  */
 export async function generateConversationIntelligence(rootPostId, options = {}) {
-  const provider = options.provider || new MockIntelligenceProvider();
+  const provider = options.provider || getIntelligenceProvider();
   const scopeKey = options.scopeKey || "public";
   const generatedBy = options.generatedBy || null;
 
@@ -397,7 +677,6 @@ export async function generateConversationIntelligence(rootPostId, options = {})
   });
 
   if (!leaseResult.acquired) {
-    // Another worker is actively generating; return current in-progress record
     return {
       insight: leaseResult.record,
       generating: true,
@@ -433,7 +712,10 @@ export async function generateConversationIntelligence(rootPostId, options = {})
       sourceCount: activeSources.length,
     };
   } catch (err) {
-    await failInsightLease(rootPost._id, scopeKey, { insightModel: InsightModel });
+    await failInsightLease(rootPost._id, scopeKey, {
+      errorCode: err.code || "INSIGHT_GENERATION_FAILED",
+      insightModel: InsightModel,
+    });
     throw err;
   }
 }

@@ -25,6 +25,7 @@ import { quotaState, transaction } from "./quota.js";
 import { createPost, deletePost, follow } from "./post-operations.js";
 import { getFeed } from "./feed-operations.js";
 import { createFeedRule, deleteFeedRule, listActiveFeedRules } from "./feed-rules-operations.js";
+import { getIntelligenceForPost, requestIntelligenceGeneration } from "./conversation-intelligence.js";
 import { toggleReaction, toggleBookmark } from "./reactions.js";
 import { normalizeHandle, pairKey } from "./handles.js";
 import { cursorFilter, pageResult, literalSearch } from "./pagination.js";
@@ -527,6 +528,17 @@ app.get("/post/:id/replies", boundary("GET /post/:id/replies", securityDependenc
   const rows=await Tweet.find({parentId:req.params.id,...cursorFilter(req.query.cursor,"timestamp",false)}).sort({timestamp:1,_id:1}).limit(limit+1).populate("author",PUBLIC_USER_FIELDS);
   const result=pageResult(rows,limit,"timestamp");
   res.set({"X-Has-More":String(result.hasMore),"X-Next-Cursor":result.nextCursor||""}).json(result.items);
+});
+
+// Conversation Intelligence (read-only cached analysis)
+app.get("/post/:id/intelligence", boundary("GET /post/:id/intelligence", securityDependencies), async (req, res) => {
+  res.json(await getIntelligenceForPost(req.params.id));
+});
+
+// Conversation Intelligence (generation / refresh)
+app.post("/post/:id/intelligence", boundary("POST /post/:id/intelligence", securityDependencies), async (req, res) => {
+  const result = await requestIntelligenceGeneration(req.params.id, req.principal);
+  res.status(result.statusCode).json(result.body);
 });
 
 // Get user by username

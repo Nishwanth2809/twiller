@@ -9,10 +9,23 @@ import {
   commitInsight,
   failInsightLease,
   generateConversationIntelligence,
+  getIntelligenceForPost,
+  requestIntelligenceGeneration,
+  insightView,
+  getIntelligenceProvider,
+  setIntelligenceProvider,
+  resetIntelligenceProvider,
   MAX_ANALYZED_REPLIES,
+  MIN_ANALYSIS_REPLIES,
+  LEASE_DURATION_MS,
+  PROVIDER_TIMEOUT_MS,
+  USER_RATE_LIMIT,
+  POST_COOLDOWN_MS,
 } from "../conversation-intelligence.js";
 import { MockIntelligenceProvider } from "../intelligence-provider.js";
 import ConversationInsight from "../models/conversationInsight.js";
+import Throttle from "../models/throttle.js";
+import { HttpError } from "../security.js";
 
 // Helper to construct in-memory mock TweetModel for pure unit testing
 function createMockTweetModel(posts = []) {
@@ -58,20 +71,27 @@ function createMockInsightModel() {
   const store = new Map();
 
   return {
-    findOne: async ({ post, scopeKey }) => {
+    _store: store,
+    findOne: async (query) => {
+      const post = query.post;
+      const scopeKey = query.scopeKey || "public";
       const key = `${post}:${scopeKey}`;
       const found = store.get(key);
-      return found ? { ...found } : null;
+      if (!found) return null;
+      if (query.status && found.status !== query.status) return null;
+      return { ...found };
     },
     findOneAndUpdate: async ({ post, scopeKey, $or }, update, options = {}) => {
-      const key = `${post}:${scopeKey}`;
+      const sKey = scopeKey || "public";
+      const key = `${post}:${sKey}`;
       const existing = store.get(key);
 
       if (existing && $or) {
         const now = new Date();
         const matchesCondition = $or.some(cond => {
           if (cond.status?.$ne && existing.status === cond.status.$ne) return false;
-          if (cond.leaseExpiresAt?.$lt && existing.leaseExpiresAt >= cond.leaseExpiresAt.$lt) return false;
+          if (cond.leaseExpiresAt?.$lt && (!existing.leaseExpiresAt || existing.leaseExpiresAt >= cond.leaseExpiresAt.$lt)) return false;
+          if (cond.leaseExpiresAt === null && existing.leaseExpiresAt !== null) return false;
           return true;
         });
 
@@ -81,7 +101,7 @@ function createMockInsightModel() {
       }
 
       const updated = {
-        ...(existing || { post, scopeKey, createdAt: new Date() }),
+        ...(existing || { post, scopeKey: sKey, createdAt: new Date() }),
         ...update.$set,
         updatedAt: new Date(),
       };
@@ -89,16 +109,30 @@ function createMockInsightModel() {
       return { ...updated };
     },
     create: async (data) => {
-      const key = `${data.post}:${data.scopeKey}`;
+      const sKey = data.scopeKey || "public";
+      const key = `${data.post}:${sKey}`;
       if (store.has(key)) {
         const err = new Error("Duplicate key");
         err.code = 11000;
         throw err;
       }
-      const created = { ...data, createdAt: new Date(), updatedAt: new Date() };
+      const created = { ...data, scopeKey: sKey, createdAt: new Date(), updatedAt: new Date() };
       store.set(key, created);
       return { ...created };
     },
+  };
+}
+
+// Helper to construct in-memory mock CircleModel
+function createMockCircleModel(circles = []) {
+  const store = new Map(circles.map(c => [String(c._id), { ...c }]));
+  return {
+    findById: (id) => ({
+      select: async () => {
+        const c = store.get(String(id));
+        return c ? { ...c } : null;
+      },
+    }),
   };
 }
 
@@ -613,4 +647,988 @@ test("WORKFLOW: successfully generates, grounds, and caches thread insight", asy
   assert.equal(providerCalled, false);
   assert.equal(res2.fresh, true);
   assert.equal(res2.insight.fingerprint, res1.insight.fingerprint);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. GET /post/:id/intelligence ENDPOINT TESTS (READ-ONLY)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("GET INTELLIGENCE: unknown post returns 404 POST_NOT_FOUND", async () => {
+  const mockTweetModel = createMockTweetModel([]);
+  const mockInsightModel = createMockInsightModel();
+  const unknownId = new mongoose.Types.ObjectId();
+
+  await assert.rejects(
+    async () => getIntelligenceForPost(unknownId, {
+      tweetModel: mockTweetModel,
+      insightModel: mockInsightModel,
+    }),
+    (err) => {
+      assert.equal(err.code, "POST_NOT_FOUND");
+      assert.equal(err.status, 404);
+      return true;
+    }
+  );
+});
+
+test("GET INTELLIGENCE: deleted root post returns 404 POST_NOT_FOUND", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const mockTweetModel = createMockTweetModel([
+    { _id: rootId, content: "Deleted post", parentId: null, deletedAt: new Date(), timestamp: new Date(0) },
+  ]);
+  const mockInsightModel = createMockInsightModel();
+
+  await assert.rejects(
+    async () => getIntelligenceForPost(rootId, {
+      tweetModel: mockTweetModel,
+      insightModel: mockInsightModel,
+    }),
+    (err) => {
+      assert.equal(err.code, "POST_NOT_FOUND");
+      assert.equal(err.status, 404);
+      return true;
+    }
+  );
+});
+
+test("GET INTELLIGENCE: thread with 0 replies returns 200 not_enough_replies", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const mockTweetModel = createMockTweetModel([
+    { _id: rootId, content: "Root with 0 replies", parentId: null, comments: 0, timestamp: new Date(0) },
+  ]);
+  const mockInsightModel = createMockInsightModel();
+
+  const res = await getIntelligenceForPost(rootId, {
+    tweetModel: mockTweetModel,
+    insightModel: mockInsightModel,
+  });
+
+  assert.equal(res.status, "not_enough_replies");
+  assert.equal(res.minimumReplies, 2);
+  assert.equal(res.insight, undefined);
+});
+
+test("GET INTELLIGENCE: thread with 1 reply returns 200 not_enough_replies", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const r1 = { _id: new mongoose.Types.ObjectId(), content: "Single reply", parentId: rootId, timestamp: new Date(1000) };
+  const mockTweetModel = createMockTweetModel([
+    { _id: rootId, content: "Root with 1 reply", parentId: null, comments: 1, timestamp: new Date(0) },
+    r1,
+  ]);
+  const mockInsightModel = createMockInsightModel();
+
+  const res = await getIntelligenceForPost(rootId, {
+    tweetModel: mockTweetModel,
+    insightModel: mockInsightModel,
+  });
+
+  assert.equal(res.status, "not_enough_replies");
+  assert.equal(res.minimumReplies, 2);
+});
+
+test("GET INTELLIGENCE: thread with 2+ replies and no cached insight returns 200 none", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const r1 = { _id: new mongoose.Types.ObjectId(), content: "Reply 1", parentId: rootId, timestamp: new Date(1000) };
+  const r2 = { _id: new mongoose.Types.ObjectId(), content: "Reply 2", parentId: rootId, timestamp: new Date(2000) };
+  const mockTweetModel = createMockTweetModel([
+    { _id: rootId, content: "Root discussion", parentId: null, comments: 2, timestamp: new Date(0) },
+    r1, r2,
+  ]);
+  const mockInsightModel = createMockInsightModel();
+
+  const res = await getIntelligenceForPost(rootId, {
+    tweetModel: mockTweetModel,
+    insightModel: mockInsightModel,
+  });
+
+  assert.equal(res.status, "none");
+  assert.equal(res.insight, undefined);
+});
+
+test("GET INTELLIGENCE: fresh cache returns 200 available with matching insight", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const r1 = { _id: new mongoose.Types.ObjectId(), content: "Reply 1", parentId: rootId, timestamp: new Date(1000) };
+  const r2 = { _id: new mongoose.Types.ObjectId(), content: "Reply 2", parentId: rootId, timestamp: new Date(2000) };
+  const rootPost = { _id: rootId, content: "Root discussion", parentId: null, comments: 2, timestamp: new Date(0) };
+  const mockTweetModel = createMockTweetModel([rootPost, r1, r2]);
+  const mockInsightModel = createMockInsightModel();
+
+  const fingerprint = computeSourceFingerprint(rootPost, [r1, r2]);
+  await mockInsightModel.create({
+    post: rootId,
+    scopeKey: "public",
+    status: "completed",
+    fingerprint,
+    overview: "Fresh overview",
+    keyPoints: [{ statement: "Point 1", sourcePostIds: [r1._id] }],
+    perspectives: [{ viewpoint: "Perspective 1", sourcePostIds: [r2._id] }],
+    analyzedReplyCount: 2,
+    latestReplyTimestamp: r2.timestamp,
+  });
+
+  const res = await getIntelligenceForPost(rootId, {
+    tweetModel: mockTweetModel,
+    insightModel: mockInsightModel,
+  });
+
+  assert.equal(res.status, "available");
+  assert.equal(res.insight.overview, "Fresh overview");
+  assert.equal(res.insight.status, "completed");
+  assert.equal(res.insight.analyzedReplyCount, 2);
+});
+
+test("GET INTELLIGENCE: stale cache when new nested reply is added returns 200 stale", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const r1 = { _id: new mongoose.Types.ObjectId(), content: "Reply 1", parentId: rootId, timestamp: new Date(1000) };
+  const r2 = { _id: new mongoose.Types.ObjectId(), content: "Reply 2", parentId: rootId, timestamp: new Date(2000) };
+  const rootPost = { _id: rootId, content: "Root discussion", parentId: null, comments: 2, timestamp: new Date(0) };
+
+  // Cached insight was generated with only r1 and r2
+  const oldFingerprint = computeSourceFingerprint(rootPost, [r1, r2]);
+  const mockInsightModel = createMockInsightModel();
+  await mockInsightModel.create({
+    post: rootId,
+    scopeKey: "public",
+    status: "completed",
+    fingerprint: oldFingerprint,
+    overview: "Old cached overview",
+    keyPoints: [{ statement: "Point 1", sourcePostIds: [r1._id] }],
+    perspectives: [{ viewpoint: "Perspective 1", sourcePostIds: [r2._id] }],
+    analyzedReplyCount: 2,
+    latestReplyTimestamp: r2.timestamp,
+  });
+
+  // Now a nested reply (r3) is added under r1
+  const r3 = { _id: new mongoose.Types.ObjectId(), content: "Nested reply under r1", parentId: r1._id, timestamp: new Date(3000) };
+  const mockTweetModel = createMockTweetModel([rootPost, r1, r2, r3]);
+
+  const res = await getIntelligenceForPost(rootId, {
+    tweetModel: mockTweetModel,
+    insightModel: mockInsightModel,
+  });
+
+  assert.equal(res.status, "stale");
+  assert.equal(res.insight.overview, "Old cached overview");
+  assert.equal(res.newRepliesCount, 1);
+  assert.equal(res.sourceCountDifference, 1);
+});
+
+test("GET INTELLIGENCE: stale cache when reply is deleted returns 200 stale", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const r1 = { _id: new mongoose.Types.ObjectId(), content: "Reply 1", parentId: rootId, timestamp: new Date(1000) };
+  const r2 = { _id: new mongoose.Types.ObjectId(), content: "Reply 2", parentId: rootId, timestamp: new Date(2000) };
+  const rootPost = { _id: rootId, content: "Root discussion", parentId: null, comments: 2, timestamp: new Date(0) };
+
+  const oldFingerprint = computeSourceFingerprint(rootPost, [r1, r2]);
+  const mockInsightModel = createMockInsightModel();
+  await mockInsightModel.create({
+    post: rootId,
+    scopeKey: "public",
+    status: "completed",
+    fingerprint: oldFingerprint,
+    overview: "Old cached overview",
+    keyPoints: [{ statement: "Point 1", sourcePostIds: [r1._id] }],
+    perspectives: [{ viewpoint: "Perspective 1", sourcePostIds: [r2._id] }],
+    analyzedReplyCount: 2,
+    latestReplyTimestamp: r2.timestamp,
+  });
+
+  // r2 is now soft-deleted
+  const r2Deleted = { ...r2, deletedAt: new Date() };
+  const r3 = { _id: new mongoose.Types.ObjectId(), content: "Reply 3", parentId: rootId, timestamp: new Date(2500) };
+  const mockTweetModel = createMockTweetModel([rootPost, r1, r2Deleted, r3]);
+
+  const res = await getIntelligenceForPost(rootId, {
+    tweetModel: mockTweetModel,
+    insightModel: mockInsightModel,
+  });
+
+  assert.equal(res.status, "stale");
+  assert.equal(res.insight.overview, "Old cached overview");
+});
+
+test("GET INTELLIGENCE: strictly read-only and never invokes provider or mutates DB", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const r1 = { _id: new mongoose.Types.ObjectId(), content: "Reply 1", parentId: rootId, timestamp: new Date(1000) };
+  const r2 = { _id: new mongoose.Types.ObjectId(), content: "Reply 2", parentId: rootId, timestamp: new Date(2000) };
+  const mockTweetModel = createMockTweetModel([
+    { _id: rootId, content: "Root post", parentId: null, comments: 2, timestamp: new Date(0) },
+    r1, r2,
+  ]);
+  const mockInsightModel = createMockInsightModel();
+
+  let providerCalled = false;
+  const mockProvider = {
+    generateThreadInsight: async () => {
+      providerCalled = true;
+      throw new Error("Provider should not be called on GET");
+    },
+  };
+  setIntelligenceProvider(mockProvider);
+
+  try {
+    const res = await getIntelligenceForPost(rootId, {
+      tweetModel: mockTweetModel,
+      insightModel: mockInsightModel,
+    });
+
+    assert.equal(res.status, "none");
+    assert.equal(providerCalled, false);
+    // Ensure no record was created in the insight store
+    assert.equal(mockInsightModel._store.size, 0);
+  } finally {
+    resetIntelligenceProvider();
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. POST /post/:id/intelligence ENDPOINT TESTS (GENERATION & CACHE REUSE)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("POST INTELLIGENCE: rejects unknown post with 404 POST_NOT_FOUND", async () => {
+  const mockTweetModel = createMockTweetModel([]);
+  const mockInsightModel = createMockInsightModel();
+  const unknownId = new mongoose.Types.ObjectId();
+
+  await assert.rejects(
+    async () => requestIntelligenceGeneration(unknownId, { _id: new mongoose.Types.ObjectId() }, {
+      tweetModel: mockTweetModel,
+      insightModel: mockInsightModel,
+    }),
+    (err) => {
+      assert.equal(err.code, "POST_NOT_FOUND");
+      assert.equal(err.status, 404);
+      return true;
+    }
+  );
+});
+
+test("POST INTELLIGENCE: rejects thread with fewer than 2 replies with 400 NOT_ENOUGH_REPLIES", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const r1 = { _id: new mongoose.Types.ObjectId(), content: "Single reply", parentId: rootId, timestamp: new Date(1000) };
+  const mockTweetModel = createMockTweetModel([
+    { _id: rootId, content: "Root post", parentId: null, comments: 1, timestamp: new Date(0) },
+    r1,
+  ]);
+  const mockInsightModel = createMockInsightModel();
+
+  await assert.rejects(
+    async () => requestIntelligenceGeneration(rootId, { _id: new mongoose.Types.ObjectId() }, {
+      tweetModel: mockTweetModel,
+      insightModel: mockInsightModel,
+    }),
+    (err) => {
+      assert.equal(err.code, "NOT_ENOUGH_REPLIES");
+      assert.equal(err.status, 400);
+      return true;
+    }
+  );
+});
+
+test("POST INTELLIGENCE: first generation returns 201 isNew: true and persists insight", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const r1 = { _id: new mongoose.Types.ObjectId(), content: "Reply 1", parentId: rootId, timestamp: new Date(1000) };
+  const r2 = { _id: new mongoose.Types.ObjectId(), content: "Reply 2", parentId: rootId, timestamp: new Date(2000) };
+  const mockTweetModel = createMockTweetModel([
+    { _id: rootId, content: "Root discussion", parentId: null, comments: 2, timestamp: new Date(0) },
+    r1, r2,
+  ]);
+  const mockInsightModel = createMockInsightModel();
+  const userId = new mongoose.Types.ObjectId();
+
+  const origThrottle = Throttle.findOneAndUpdate;
+  Throttle.findOneAndUpdate = async () => ({ count: 1 });
+  try {
+    const res = await requestIntelligenceGeneration(rootId, { _id: userId }, {
+      tweetModel: mockTweetModel,
+      insightModel: mockInsightModel,
+      provider: new MockIntelligenceProvider(),
+    });
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body.status, "available");
+    assert.equal(res.body.fresh, true);
+    assert.equal(res.body.isNew, true);
+    assert.equal(res.body.insight.analyzedReplyCount, 2);
+
+    // Verify stored in DB
+    const stored = await mockInsightModel.findOne({ post: rootId, scopeKey: "public" });
+    assert.equal(stored.status, "completed");
+    assert.equal(stored.overview, res.body.insight.overview);
+  } finally {
+    Throttle.findOneAndUpdate = origThrottle;
+  }
+});
+
+test("POST INTELLIGENCE: fresh cache hit returns 200 without calling provider or charging quota", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const r1 = { _id: new mongoose.Types.ObjectId(), content: "Reply 1", parentId: rootId, timestamp: new Date(1000) };
+  const r2 = { _id: new mongoose.Types.ObjectId(), content: "Reply 2", parentId: rootId, timestamp: new Date(2000) };
+  const rootPost = { _id: rootId, content: "Root discussion", parentId: null, comments: 2, timestamp: new Date(0) };
+  const mockTweetModel = createMockTweetModel([rootPost, r1, r2]);
+  const mockInsightModel = createMockInsightModel();
+
+  const fingerprint = computeSourceFingerprint(rootPost, [r1, r2]);
+  await mockInsightModel.create({
+    post: rootId,
+    scopeKey: "public",
+    status: "completed",
+    fingerprint,
+    overview: "Already fresh",
+    keyPoints: [{ statement: "Point 1", sourcePostIds: [r1._id] }],
+    perspectives: [{ viewpoint: "Perspective 1", sourcePostIds: [r2._id] }],
+    analyzedReplyCount: 2,
+    latestReplyTimestamp: r2.timestamp,
+  });
+
+  let providerCalled = false;
+  const mockProvider = {
+    generateThreadInsight: async () => { providerCalled = true; },
+  };
+
+  let throttleCalled = false;
+  const origThrottle = Throttle.findOneAndUpdate;
+  Throttle.findOneAndUpdate = async () => {
+    throttleCalled = true;
+    return { count: 1 };
+  };
+
+  try {
+    const res = await requestIntelligenceGeneration(rootId, { _id: new mongoose.Types.ObjectId() }, {
+      tweetModel: mockTweetModel,
+      insightModel: mockInsightModel,
+      provider: mockProvider,
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.status, "available");
+    assert.equal(res.body.fresh, true);
+    assert.equal(res.body.insight.overview, "Already fresh");
+    assert.equal(providerCalled, false, "Provider must not be called on fresh cache");
+    assert.equal(throttleCalled, false, "Throttle must not be consumed on fresh cache reuse");
+  } finally {
+    Throttle.findOneAndUpdate = origThrottle;
+  }
+});
+
+test("POST INTELLIGENCE: stale cache triggers regeneration and returns 200 refreshed: true", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const r1 = { _id: new mongoose.Types.ObjectId(), content: "Reply 1", parentId: rootId, timestamp: new Date(1000) };
+  const r2 = { _id: new mongoose.Types.ObjectId(), content: "Reply 2", parentId: rootId, timestamp: new Date(2000) };
+  const rootPost = { _id: rootId, content: "Root discussion", parentId: null, comments: 2, timestamp: new Date(0) };
+
+  // Old cache with r1 and r2
+  const oldFingerprint = computeSourceFingerprint(rootPost, [r1, r2]);
+  const mockInsightModel = createMockInsightModel();
+  await mockInsightModel.create({
+    post: rootId,
+    scopeKey: "public",
+    status: "completed",
+    fingerprint: oldFingerprint,
+    overview: "Old overview",
+    keyPoints: [{ statement: "Point 1", sourcePostIds: [r1._id] }],
+    perspectives: [{ viewpoint: "Perspective 1", sourcePostIds: [r2._id] }],
+    analyzedReplyCount: 2,
+    latestReplyTimestamp: r2.timestamp,
+  });
+
+  // New reply r3 added
+  const r3 = { _id: new mongoose.Types.ObjectId(), content: "Reply 3 added", parentId: rootId, timestamp: new Date(3000) };
+  const mockTweetModel = createMockTweetModel([rootPost, r1, r2, r3]);
+
+  const origThrottle = Throttle.findOneAndUpdate;
+  Throttle.findOneAndUpdate = async () => ({ count: 1 });
+  try {
+    const res = await requestIntelligenceGeneration(rootId, { _id: new mongoose.Types.ObjectId() }, {
+      tweetModel: mockTweetModel,
+      insightModel: mockInsightModel,
+      provider: new MockIntelligenceProvider(),
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.status, "available");
+    assert.equal(res.body.fresh, true);
+    assert.equal(res.body.refreshed, true);
+    assert.equal(res.body.insight.analyzedReplyCount, 3);
+  } finally {
+    Throttle.findOneAndUpdate = origThrottle;
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 9. CONCURRENCY TESTS (DB-BACKED LEASE)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("CONCURRENCY: simultaneous generation requests — exactly one provider invocation, second receives 409", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const r1 = { _id: new mongoose.Types.ObjectId(), content: "Reply 1", parentId: rootId, timestamp: new Date(1000) };
+  const r2 = { _id: new mongoose.Types.ObjectId(), content: "Reply 2", parentId: rootId, timestamp: new Date(2000) };
+  const mockTweetModel = createMockTweetModel([
+    { _id: rootId, content: "Root discussion", parentId: null, comments: 2, timestamp: new Date(0) },
+    r1, r2,
+  ]);
+  const mockInsightModel = createMockInsightModel();
+
+  let providerInvocations = 0;
+  const slowProvider = {
+    generateThreadInsight: async (ctx) => {
+      providerInvocations++;
+      // Simulate 50ms provider latency
+      await new Promise(r => setTimeout(r, 50));
+      return new MockIntelligenceProvider().generateThreadInsight(ctx);
+    },
+  };
+
+  const origThrottle = Throttle.findOneAndUpdate;
+  Throttle.findOneAndUpdate = async () => ({ count: 1 });
+
+  try {
+    // Launch Worker A and Worker B concurrently on the same post
+    const promiseA = requestIntelligenceGeneration(rootId, { _id: new mongoose.Types.ObjectId() }, {
+      tweetModel: mockTweetModel,
+      insightModel: mockInsightModel,
+      provider: slowProvider,
+    });
+
+    // Small micro-tick to let Worker A acquire the lease
+    await new Promise(r => setTimeout(r, 5));
+
+    const promiseB = requestIntelligenceGeneration(rootId, { _id: new mongoose.Types.ObjectId() }, {
+      tweetModel: mockTweetModel,
+      insightModel: mockInsightModel,
+      provider: slowProvider,
+    });
+
+    const [resultA, resultB] = await Promise.allSettled([promiseA, promiseB]);
+
+    // Worker A succeeds with 201
+    assert.equal(resultA.status, "fulfilled");
+    assert.equal(resultA.value.statusCode, 201);
+
+    // Worker B fails with 409 INSIGHT_GENERATION_IN_PROGRESS
+    assert.equal(resultB.status, "rejected");
+    assert.equal(resultB.reason.code, "INSIGHT_GENERATION_IN_PROGRESS");
+    assert.equal(resultB.reason.status, 409);
+
+    // Exactly one provider invocation occurred
+    assert.equal(providerInvocations, 1);
+  } finally {
+    Throttle.findOneAndUpdate = origThrottle;
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. LEASE RECOVERY TESTS (EXPIRED LEASE RE-ACQUISITION)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("LEASE RECOVERY: expired lease from crashed process allows subsequent generation", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const r1 = { _id: new mongoose.Types.ObjectId(), content: "Reply 1", parentId: rootId, timestamp: new Date(1000) };
+  const r2 = { _id: new mongoose.Types.ObjectId(), content: "Reply 2", parentId: rootId, timestamp: new Date(2000) };
+  const mockTweetModel = createMockTweetModel([
+    { _id: rootId, content: "Root discussion", parentId: null, comments: 2, timestamp: new Date(0) },
+    r1, r2,
+  ]);
+  const mockInsightModel = createMockInsightModel();
+
+  // Simulate an abandoned lease that expired 10 seconds ago
+  await mockInsightModel.create({
+    post: rootId,
+    scopeKey: "public",
+    status: "generating",
+    leaseExpiresAt: new Date(Date.now() - 10000),
+  });
+
+  const origThrottle = Throttle.findOneAndUpdate;
+  Throttle.findOneAndUpdate = async () => ({ count: 1 });
+
+  try {
+    const res = await requestIntelligenceGeneration(rootId, { _id: new mongoose.Types.ObjectId() }, {
+      tweetModel: mockTweetModel,
+      insightModel: mockInsightModel,
+      provider: new MockIntelligenceProvider(),
+    });
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body.status, "available");
+    assert.equal(res.body.insight.status, "completed");
+  } finally {
+    Throttle.findOneAndUpdate = origThrottle;
+  }
+});
+
+test("LEASE RECOVERY: active unexpired lease prevents concurrent generation (409)", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const r1 = { _id: new mongoose.Types.ObjectId(), content: "Reply 1", parentId: rootId, timestamp: new Date(1000) };
+  const r2 = { _id: new mongoose.Types.ObjectId(), content: "Reply 2", parentId: rootId, timestamp: new Date(2000) };
+  const mockTweetModel = createMockTweetModel([
+    { _id: rootId, content: "Root discussion", parentId: null, comments: 2, timestamp: new Date(0) },
+    r1, r2,
+  ]);
+  const mockInsightModel = createMockInsightModel();
+
+  // Active lease that expires in 25 seconds
+  await mockInsightModel.create({
+    post: rootId,
+    scopeKey: "public",
+    status: "generating",
+    leaseExpiresAt: new Date(Date.now() + 25000),
+  });
+
+  const origThrottle = Throttle.findOneAndUpdate;
+  Throttle.findOneAndUpdate = async () => ({ count: 1 });
+
+  try {
+    await assert.rejects(
+      async () => requestIntelligenceGeneration(rootId, { _id: new mongoose.Types.ObjectId() }, {
+        tweetModel: mockTweetModel,
+        insightModel: mockInsightModel,
+        provider: new MockIntelligenceProvider(),
+      }),
+      (err) => {
+        assert.equal(err.code, "INSIGHT_GENERATION_IN_PROGRESS");
+        assert.equal(err.status, 409);
+        return true;
+      }
+    );
+  } finally {
+    Throttle.findOneAndUpdate = origThrottle;
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 11. RATE LIMITING TESTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("RATE LIMIT: user generation limit enforces 10 attempts/hour; 11th receives 429", async () => {
+  const mockInsightModel = createMockInsightModel();
+  const userId = new mongoose.Types.ObjectId();
+
+  const throttleCounts = new Map();
+  const origThrottle = Throttle.findOneAndUpdate;
+  Throttle.findOneAndUpdate = async (query, update) => {
+    const id = query._id;
+    let count = (throttleCounts.get(id) || 0) + (update.$inc?.count || 1);
+    throttleCounts.set(id, count);
+    return { count };
+  };
+
+  try {
+    // Perform 10 allowed attempts on distinct posts to isolate user rate limit
+    for (let i = 0; i < 10; i++) {
+      const pId = new mongoose.Types.ObjectId();
+      const rA = { _id: new mongoose.Types.ObjectId(), content: "Reply A", parentId: pId, timestamp: new Date(1000) };
+      const rB = { _id: new mongoose.Types.ObjectId(), content: "Reply B", parentId: pId, timestamp: new Date(2000) };
+      const tweetModel = createMockTweetModel([
+        { _id: pId, content: `Root discussion ${i}`, parentId: null, comments: 2, timestamp: new Date(0) },
+        rA, rB,
+      ]);
+
+      const res = await requestIntelligenceGeneration(pId, { _id: userId }, {
+        tweetModel,
+        insightModel: mockInsightModel,
+        provider: new MockIntelligenceProvider(),
+      });
+      assert.equal(res.statusCode, 201);
+    }
+
+    // 11th attempt for the same user is throttled
+    const pId11 = new mongoose.Types.ObjectId();
+    const rA11 = { _id: new mongoose.Types.ObjectId(), content: "Reply A", parentId: pId11, timestamp: new Date(1000) };
+    const rB11 = { _id: new mongoose.Types.ObjectId(), content: "Reply B", parentId: pId11, timestamp: new Date(2000) };
+    const tweetModel11 = createMockTweetModel([
+      { _id: pId11, content: "Root discussion 11", parentId: null, comments: 2, timestamp: new Date(0) },
+      rA11, rB11,
+    ]);
+
+    await assert.rejects(
+      async () => requestIntelligenceGeneration(pId11, { _id: userId }, {
+        tweetModel: tweetModel11,
+        insightModel: mockInsightModel,
+        provider: new MockIntelligenceProvider(),
+      }),
+      (err) => {
+        assert.equal(err.code, "THROTTLED");
+        assert.equal(err.status, 429);
+        return true;
+      }
+    );
+
+    // Another user is NOT affected
+    const otherUserId = new mongoose.Types.ObjectId();
+    const otherRes = await requestIntelligenceGeneration(pId11, { _id: otherUserId }, {
+      tweetModel: tweetModel11,
+      insightModel: mockInsightModel,
+      provider: new MockIntelligenceProvider(),
+    });
+    assert.equal(otherRes.statusCode, 201);
+  } finally {
+    Throttle.findOneAndUpdate = origThrottle;
+  }
+});
+
+test("RATE LIMIT: post cooldown throttles rapid repeat attempts within 60 seconds", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const r1 = { _id: new mongoose.Types.ObjectId(), content: "Reply 1", parentId: rootId, timestamp: new Date(1000) };
+  const r2 = { _id: new mongoose.Types.ObjectId(), content: "Reply 2", parentId: rootId, timestamp: new Date(2000) };
+  const mockTweetModel = createMockTweetModel([
+    { _id: rootId, content: "Root discussion", parentId: null, comments: 2, timestamp: new Date(0) },
+    r1, r2,
+  ]);
+  const mockInsightModel = createMockInsightModel();
+  const userA = new mongoose.Types.ObjectId();
+  const userB = new mongoose.Types.ObjectId();
+
+  const throttleCounts = new Map();
+  const origThrottle = Throttle.findOneAndUpdate;
+  Throttle.findOneAndUpdate = async (query, update) => {
+    const id = query._id;
+    let count = (throttleCounts.get(id) || 0) + (update.$inc?.count || 1);
+    throttleCounts.set(id, count);
+    return { count };
+  };
+
+  try {
+    // User A generates for post
+    const resA = await requestIntelligenceGeneration(rootId, { _id: userA }, {
+      tweetModel: mockTweetModel,
+      insightModel: mockInsightModel,
+      provider: new MockIntelligenceProvider(),
+    });
+    assert.equal(resA.statusCode, 201);
+
+    // Simulate post was changed so it's not a fresh cache hit
+    mockInsightModel._store.clear();
+
+    // User B attempts generation immediately on same post within 60s cooldown
+    await assert.rejects(
+      async () => requestIntelligenceGeneration(rootId, { _id: userB }, {
+        tweetModel: mockTweetModel,
+        insightModel: mockInsightModel,
+        provider: new MockIntelligenceProvider(),
+      }),
+      (err) => {
+        assert.equal(err.code, "THROTTLED");
+        assert.equal(err.status, 429);
+        return true;
+      }
+    );
+  } finally {
+    Throttle.findOneAndUpdate = origThrottle;
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 12. PROVIDER TIMEOUT AND FAILURE TESTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("PROVIDER TIMEOUT: execution exceeding service timeout boundary throws 504 and marks lease failed", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const r1 = { _id: new mongoose.Types.ObjectId(), content: "Reply 1", parentId: rootId, timestamp: new Date(1000) };
+  const r2 = { _id: new mongoose.Types.ObjectId(), content: "Reply 2", parentId: rootId, timestamp: new Date(2000) };
+  const mockTweetModel = createMockTweetModel([
+    { _id: rootId, content: "Root discussion", parentId: null, comments: 2, timestamp: new Date(0) },
+    r1, r2,
+  ]);
+  const mockInsightModel = createMockInsightModel();
+
+  // Provider that takes longer than the timeout boundary
+  const slowProvider = {
+    generateThreadInsight: async (ctx) => {
+      await new Promise(r => setTimeout(r, 100));
+      return new MockIntelligenceProvider().generateThreadInsight(ctx);
+    },
+  };
+
+  const origThrottle = Throttle.findOneAndUpdate;
+  Throttle.findOneAndUpdate = async () => ({ count: 1 });
+
+  try {
+    await assert.rejects(
+      async () => requestIntelligenceGeneration(rootId, { _id: new mongoose.Types.ObjectId() }, {
+        tweetModel: mockTweetModel,
+        insightModel: mockInsightModel,
+        provider: slowProvider,
+        timeoutMs: 20, // fast timeout for test
+      }),
+      (err) => {
+        assert.equal(err.code, "INTELLIGENCE_PROVIDER_TIMEOUT");
+        assert.equal(err.status, 504);
+        return true;
+      }
+    );
+
+    // Verify lease was safely released and marked failed
+    const stored = await mockInsightModel.findOne({ post: rootId, scopeKey: "public" });
+    assert.equal(stored.status, "failed");
+    assert.equal(stored.leaseExpiresAt, null);
+    assert.equal(stored.lastGenerationErrorCode, "INTELLIGENCE_PROVIDER_TIMEOUT");
+  } finally {
+    Throttle.findOneAndUpdate = origThrottle;
+  }
+});
+
+test("PROVIDER FAILURE: provider error throws 502, marks lease failed, and leaves no corrupt cache", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const r1 = { _id: new mongoose.Types.ObjectId(), content: "Reply 1", parentId: rootId, timestamp: new Date(1000) };
+  const r2 = { _id: new mongoose.Types.ObjectId(), content: "Reply 2", parentId: rootId, timestamp: new Date(2000) };
+  const mockTweetModel = createMockTweetModel([
+    { _id: rootId, content: "Root discussion", parentId: null, comments: 2, timestamp: new Date(0) },
+    r1, r2,
+  ]);
+  const mockInsightModel = createMockInsightModel();
+
+  const failingProvider = {
+    generateThreadInsight: async () => {
+      throw new Error("Raw upstream AI engine error with secret: sk-12345");
+    },
+  };
+
+  const origThrottle = Throttle.findOneAndUpdate;
+  Throttle.findOneAndUpdate = async () => ({ count: 1 });
+
+  try {
+    await assert.rejects(
+      async () => requestIntelligenceGeneration(rootId, { _id: new mongoose.Types.ObjectId() }, {
+        tweetModel: mockTweetModel,
+        insightModel: mockInsightModel,
+        provider: failingProvider,
+      }),
+      (err) => {
+        assert.equal(err.code, "INTELLIGENCE_PROVIDER_UNAVAILABLE");
+        assert.equal(err.status, 502);
+        // Ensure raw secrets/message are not exposed in client error
+        assert.equal(err.message.includes("sk-12345"), false);
+        return true;
+      }
+    );
+
+    const stored = await mockInsightModel.findOne({ post: rootId, scopeKey: "public" });
+    assert.equal(stored.status, "failed");
+    assert.equal(stored.overview, undefined);
+  } finally {
+    Throttle.findOneAndUpdate = origThrottle;
+  }
+});
+
+test("PROVIDER FAILURE: grounding failure throws 422 and marks lease failed", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const r1 = { _id: new mongoose.Types.ObjectId(), content: "Reply 1", parentId: rootId, timestamp: new Date(1000) };
+  const r2 = { _id: new mongoose.Types.ObjectId(), content: "Reply 2", parentId: rootId, timestamp: new Date(2000) };
+  const mockTweetModel = createMockTweetModel([
+    { _id: rootId, content: "Root discussion", parentId: null, comments: 2, timestamp: new Date(0) },
+    r1, r2,
+  ]);
+  const mockInsightModel = createMockInsightModel();
+
+  const ungroundedProvider = {
+    generateThreadInsight: async () => ({
+      overview: "Hallucinated summary",
+      keyPoints: [{ statement: "Fake point", sourcePostIds: [new mongoose.Types.ObjectId()] }], // Not in thread!
+      perspectives: [{ viewpoint: "Fake perspective", sourcePostIds: [r1._id] }],
+    }),
+  };
+
+  const origThrottle = Throttle.findOneAndUpdate;
+  Throttle.findOneAndUpdate = async () => ({ count: 1 });
+
+  try {
+    await assert.rejects(
+      async () => requestIntelligenceGeneration(rootId, { _id: new mongoose.Types.ObjectId() }, {
+        tweetModel: mockTweetModel,
+        insightModel: mockInsightModel,
+        provider: ungroundedProvider,
+      }),
+      (err) => {
+        assert.equal(err.code, "INSIGHT_GROUNDING_FAILED");
+        assert.equal(err.status, 422);
+        return true;
+      }
+    );
+
+    const stored = await mockInsightModel.findOne({ post: rootId, scopeKey: "public" });
+    assert.equal(stored.status, "failed");
+    assert.equal(stored.lastGenerationErrorCode, "INSIGHT_GROUNDING_FAILED");
+  } finally {
+    Throttle.findOneAndUpdate = origThrottle;
+  }
+});
+
+test("PROVIDER RECOVERY: future retry after failure successfully re-acquires lease and completes", async () => {
+  const rootId = new mongoose.Types.ObjectId();
+  const r1 = { _id: new mongoose.Types.ObjectId(), content: "Reply 1", parentId: rootId, timestamp: new Date(1000) };
+  const r2 = { _id: new mongoose.Types.ObjectId(), content: "Reply 2", parentId: rootId, timestamp: new Date(2000) };
+  const mockTweetModel = createMockTweetModel([
+    { _id: rootId, content: "Root discussion", parentId: null, comments: 2, timestamp: new Date(0) },
+    r1, r2,
+  ]);
+  const mockInsightModel = createMockInsightModel();
+
+  // Document was marked failed from a prior attempt
+  await mockInsightModel.create({
+    post: rootId,
+    scopeKey: "public",
+    status: "failed",
+    leaseExpiresAt: null,
+    lastGenerationErrorCode: "INTELLIGENCE_PROVIDER_UNAVAILABLE",
+  });
+
+  const origThrottle = Throttle.findOneAndUpdate;
+  Throttle.findOneAndUpdate = async () => ({ count: 1 });
+
+  try {
+    const res = await requestIntelligenceGeneration(rootId, { _id: new mongoose.Types.ObjectId() }, {
+      tweetModel: mockTweetModel,
+      insightModel: mockInsightModel,
+      provider: new MockIntelligenceProvider(),
+    });
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.body.status, "available");
+    assert.equal(res.body.insight.status, "completed");
+
+    const stored = await mockInsightModel.findOne({ post: rootId, scopeKey: "public" });
+    assert.equal(stored.status, "completed");
+    assert.equal(stored.lastGenerationErrorCode, null);
+  } finally {
+    Throttle.findOneAndUpdate = origThrottle;
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 13. HTTP API AND SECURITY BOUNDARY TESTS (EXPRESS BOUNDARY INTEGRATION)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("HTTP API & BOUNDARY: verification of GET and POST endpoints with security checks", async () => {
+  const { app, securityDependencies } = await import("../index.js");
+  const User = (await import("../models/user.js")).default;
+  const Tweet = (await import("../models/tweet.js")).default;
+  const LoginSession = (await import("../models/loginSession.js")).default;
+  const { sessionId } = await import("../security.js");
+
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise(r => server.once("listening", r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+
+  const testUserId = new mongoose.Types.ObjectId();
+  const testToken = { uid: "test-intelligence-user", email: "intel@example.test", auth_time: 100, email_verified: true };
+  const testSessionKey = sessionId(testToken);
+
+  // Mocks for DB models during HTTP integration
+  const origUserFindOne = User.findOne;
+  const origSessionFindById = LoginSession.findById;
+  const origVerifyToken = securityDependencies.verifyToken;
+  const origThrottle = Throttle.findOneAndUpdate;
+
+  Throttle.findOneAndUpdate = async () => ({ count: 1 });
+  securityDependencies.verifyToken = async (cred) => {
+    if (cred === "valid-token") return testToken;
+    throw new Error("Invalid token");
+  };
+
+  User.findOne = async (query) => {
+    if (query.firebaseUid === testToken.uid || query.email === testToken.email) {
+      return {
+        _id: testUserId,
+        firebaseUid: testToken.uid,
+        email: testToken.email,
+        username: "inteluser",
+        displayName: "Intelligence User",
+      };
+    }
+    return null;
+  };
+
+  let sessionStatus = "verified";
+  LoginSession.findById = async (id) => {
+    if (id === testSessionKey) {
+      return {
+        _id: testSessionKey,
+        uid: testToken.uid,
+        status: sessionStatus,
+        expiresAt: new Date(Date.now() + 3600000),
+      };
+    }
+    return null;
+  };
+
+  try {
+    // 1. GET with invalid post ID format -> 400 INVALID_POST_ID
+    const getInvalidId = await fetch(`${base}/post/invalid-hex-format/intelligence`);
+    assert.equal(getInvalidId.status, 400);
+    const getInvalidIdData = await getInvalidId.json();
+    assert.equal(getInvalidIdData.code, "INVALID_POST_ID");
+
+    // 2. POST unauthenticated -> 401 AUTH_REQUIRED
+    const validPostHex = new mongoose.Types.ObjectId().toString();
+    const postUnauth = await fetch(`${base}/post/${validPostHex}/intelligence`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    assert.equal(postUnauth.status, 401);
+    const postUnauthData = await postUnauth.json();
+    assert.equal(postUnauthData.code, "AUTH_REQUIRED");
+
+    // 3. POST with invalid bearer token -> 401 INVALID_TOKEN
+    const postBadToken = await fetch(`${base}/post/${validPostHex}/intelligence`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer expired-token",
+      },
+    });
+    assert.equal(postBadToken.status, 401);
+    const postBadTokenData = await postBadToken.json();
+    assert.equal(postBadTokenData.code, "INVALID_TOKEN");
+
+    // 4. POST with unverified session -> 403 OTP_REQUIRED
+    sessionStatus = "pending";
+    const postUnverified = await fetch(`${base}/post/${validPostHex}/intelligence`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer valid-token",
+      },
+    });
+    assert.equal(postUnverified.status, 403);
+    const postUnverifiedData = await postUnverified.json();
+    assert.equal(postUnverifiedData.code, "OTP_REQUIRED");
+    sessionStatus = "verified";
+
+    // 5. POST with invalid post ID format -> 400 INVALID_POST_ID
+    const postInvalidId = await fetch(`${base}/post/not-a-valid-post-id/intelligence`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer valid-token",
+      },
+    });
+    assert.equal(postInvalidId.status, 400);
+    const postInvalidIdData = await postInvalidId.json();
+    assert.equal(postInvalidIdData.code, "INVALID_POST_ID");
+
+    // 6. POST attempting to inject forbidden client parameters -> 400 INVALID_INPUT
+    const postClientInjection = await fetch(`${base}/post/${validPostHex}/intelligence`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer valid-token",
+      },
+      body: JSON.stringify({
+        sourcePostIds: ["111111111111111111111111"],
+        viewerId: "222222222222222222222222",
+        rootContext: "fakeContext",
+      }),
+    });
+    assert.equal(postClientInjection.status, 400);
+    const postClientInjectionData = await postClientInjection.json();
+    assert.equal(postClientInjectionData.code, "INVALID_INPUT");
+  } finally {
+    User.findOne = origUserFindOne;
+    LoginSession.findById = origSessionFindById;
+    securityDependencies.verifyToken = origVerifyToken;
+    Throttle.findOneAndUpdate = origThrottle;
+    server.closeAllConnections();
+    await new Promise(r => server.close(r));
+  }
 });
