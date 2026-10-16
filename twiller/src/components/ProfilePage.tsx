@@ -234,28 +234,28 @@ export default function ProfilePage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 bg-transparent border-b border-border rounded-none h-auto overflow-x-auto">
+        <TabsList className="flex w-full items-center justify-between gap-1.5 bg-surface/30 backdrop-blur-sm border-b border-border p-2 rounded-2xl h-auto">
           <TabsTrigger
             value="posts"
-            className="data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:rounded-none text-text-muted hover:bg-surface-hover/50 py-4 font-semibold transition-colors"
+            className="flex-1 py-2.5 px-3 rounded-full font-semibold text-sm transition-all duration-200 cursor-pointer text-text-muted hover:text-foreground hover:bg-surface-hover hover:scale-[1.02] active:scale-[0.98] data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:border data-[state=active]:border-primary/40 data-[state=active]:shadow-sm data-[state=active]:rounded-full border border-transparent"
           >
             Posts
           </TabsTrigger>
           <TabsTrigger
             value="replies"
-            className="data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:rounded-none text-text-muted hover:bg-surface-hover/50 py-4 font-semibold transition-colors"
+            className="flex-1 py-2.5 px-3 rounded-full font-semibold text-sm transition-all duration-200 cursor-pointer text-text-muted hover:text-foreground hover:bg-surface-hover hover:scale-[1.02] active:scale-[0.98] data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:border data-[state=active]:border-primary/40 data-[state=active]:shadow-sm data-[state=active]:rounded-full border border-transparent"
           >
             Replies
           </TabsTrigger>
           <TabsTrigger
             value="media"
-            className="data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:rounded-none text-text-muted hover:bg-surface-hover/50 py-4 font-semibold transition-colors"
+            className="flex-1 py-2.5 px-3 rounded-full font-semibold text-sm transition-all duration-200 cursor-pointer text-text-muted hover:text-foreground hover:bg-surface-hover hover:scale-[1.02] active:scale-[0.98] data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:border data-[state=active]:border-primary/40 data-[state=active]:shadow-sm data-[state=active]:rounded-full border border-transparent"
           >
             Media
           </TabsTrigger>
           <TabsTrigger
             value="sessions"
-            className="data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:rounded-none text-text-muted hover:bg-surface-hover/50 py-4 font-semibold transition-colors"
+            className="flex-1 py-2.5 px-3 rounded-full font-semibold text-sm transition-all duration-200 cursor-pointer text-text-muted hover:text-foreground hover:bg-surface-hover hover:scale-[1.02] active:scale-[0.98] data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:border data-[state=active]:border-primary/40 data-[state=active]:shadow-sm data-[state=active]:rounded-full border border-transparent"
           >
             Sessions
           </TabsTrigger>
