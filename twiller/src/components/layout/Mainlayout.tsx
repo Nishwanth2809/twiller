@@ -171,7 +171,6 @@ const Mainlayout = ({ children }: { children: React.ReactNode }) => {
         />
       )}
 
-      <a href="#main-content" className="sr-only z-[100] rounded-md bg-white px-4 py-2 font-semibold text-black focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">Skip to main content</a>
       <div className={isDemoMode ? "twiller-app twiller-demo" : "twiller-app"}>
         {isDemoMode && <div role="status" className="fixed top-0 inset-x-0 z-50 bg-amber-300 text-black text-center text-xs font-semibold px-3 py-1">LOCAL DEMO · Sample data only · External services disabled</div>}
         <TopBar onNavigate={navigate} onOpenComposer={() => setShowComposer(true)} onSearch={(query) => {

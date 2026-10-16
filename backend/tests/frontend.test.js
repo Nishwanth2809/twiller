@@ -224,7 +224,7 @@ test("shared dialog uses native modal semantics, labels, Escape handling, and fo
     previousHTMLElement ? Object.defineProperty(globalThis, "HTMLElement", previousHTMLElement) : delete globalThis.HTMLElement;
   }
 });
-test("changed form and navigation surfaces expose field errors, landmarks, and a skip link", () => {
+test("changed form and navigation surfaces expose field errors and landmarks", () => {
   const source = relative => readFileSync(new URL(`../../twiller/src/${relative}`, import.meta.url), "utf8");
   for (const path of ["components/Authmodel.tsx", "components/Editprofile.tsx", "components/ForgotPassword.tsx"]) {
     const text = source(path);
@@ -239,7 +239,6 @@ test("changed form and navigation surfaces expose field errors, landmarks, and a
   assert.match(postCard, /aria-label=\{`Reply, \$\{formatNumber\(tweetState\.comments\)\} replies`\}/);
   assert.match(postCard, /role=\{toastIsError \? "alert" : "status"\}/);
   const layout = source("components/layout/Mainlayout.tsx");
-  assert.match(layout, /href="#main-content"/);
   assert.match(layout, /<main[^>]*id="main-content"/);
   assert.match(layout, /aria-label="Primary navigation"/);
   assert.equal((source("components/ProfilePage.tsx").match(/<h1\b/g) || []).length, 1, "profile exposes one page-level heading");
