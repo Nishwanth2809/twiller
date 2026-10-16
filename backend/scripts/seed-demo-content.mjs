@@ -20,6 +20,12 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import mongoose from "mongoose";
 import { GridFSBucket } from "mongodb";
+import dns from "node:dns";
+import dotenv from "dotenv";
+
+if (dns && typeof dns.setServers === "function") {
+  try { dns.setServers(["8.8.8.8", "1.1.1.1"]); } catch {}
+}
 
 import User from "../models/user.js";
 import Tweet from "../models/tweet.js";
@@ -37,6 +43,7 @@ import {
 import { generateAllAssets } from "./generate-demo-assets.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 const ASSETS_DIR = path.resolve(__dirname, "seed-assets");
 
 export const DEMO_SEED_TAG = "TWILLER_DEMO_V1";
@@ -908,7 +915,7 @@ export async function runDemoSeeder(options = {}) {
       const avatarBuffer = await readFile(avatarPath);
 
       // Ingest Avatar Media
-      if (isDbMedia && bucket) {
+      if (bucket) {
         const fileExists = await bucket.find({ _id: mediaId }).limit(1).hasNext();
         if (!fileExists) {
           await pipeline(
@@ -916,13 +923,14 @@ export async function runDemoSeeder(options = {}) {
             bucket.openUploadStreamWithId(mediaId, `${mediaId}.jpg`, { contentType: "image/jpeg" })
           );
         }
-      } else {
+      }
+      try {
         const dir = mediaDirectory();
         const dest = path.join(dir, `${mediaId}.jpg`);
         const { mkdir, writeFile: fsWriteFile } = await import("node:fs/promises");
         await mkdir(dir, { recursive: true });
         await fsWriteFile(dest, avatarBuffer);
-      }
+      } catch {}
 
       await Media.collection.updateOne(
         { _id: mediaId },
@@ -1088,7 +1096,7 @@ export async function runDemoSeeder(options = {}) {
       const filePath = path.join(ASSETS_DIR, filename);
       const imgBuffer = await readFile(filePath);
 
-      if (isDbMedia && bucket) {
+      if (bucket) {
         const fileExists = await bucket.find({ _id: mediaId }).limit(1).hasNext();
         if (!fileExists) {
           await pipeline(
@@ -1096,13 +1104,14 @@ export async function runDemoSeeder(options = {}) {
             bucket.openUploadStreamWithId(mediaId, `${mediaId}.jpg`, { contentType: "image/jpeg" })
           );
         }
-      } else {
+      }
+      try {
         const dir = mediaDirectory();
         const dest = path.join(dir, `${mediaId}.jpg`);
         const { mkdir, writeFile: fsWriteFile } = await import("node:fs/promises");
         await mkdir(dir, { recursive: true });
         await fsWriteFile(dest, imgBuffer);
-      }
+      } catch {}
 
       await Media.collection.updateOne(
         { _id: mediaId },
