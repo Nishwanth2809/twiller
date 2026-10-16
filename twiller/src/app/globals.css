@@ -395,7 +395,12 @@ html .twiller-discovery [data-twiller-plan-card] button { background: var(--prim
 html .twiller-post:hover { background-color: var(--elevated) !important; }
 .twiller-composer { margin: 12px; padding-block: 0; border: 1px solid var(--border); border-radius: 14px; }
 .twiller-feed .twiller-composer { margin: 0 0 12px; }
-.twiller-feed > .sticky { background: var(--background) !important; border-bottom: 0; }
+.twiller-feed > .sticky {
+  border-radius: 9999px !important;
+  border: 1px solid var(--border) !important;
+  background: var(--card) !important;
+  margin: 4px 0 12px;
+}
 html .twiller-feed [data-slot="tabs-list"] { display: flex; justify-content: flex-start; gap: 20px; padding: 0 12px; border-color: var(--border); }
 html .twiller-feed [data-slot="tabs-trigger"] { position: relative; flex: none; min-height: 48px; padding: 10px 16px; font-weight: 500; border: 0 !important; background: transparent !important; box-shadow: none; }
 html .twiller-feed [data-slot="tabs-trigger"][data-state="active"]::after { content: ""; position: absolute; bottom: 0; left: 16px; right: 16px; height: 2px; background: var(--primary); border-radius: 2px; }

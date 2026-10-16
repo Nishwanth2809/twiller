@@ -243,9 +243,9 @@ export default function SubscriptionPage() {
               </div>
             </div>
           ) : (
-            <div className="mb-8 flex items-center gap-3 px-5 py-4 rounded-2xl border border-accent/30 bg-accent/10 text-accent text-sm font-medium">
-              <CheckCircle className="h-5 w-5 flex-shrink-0 text-accent" />
-              <div>
+            <div className="mb-8 flex items-center gap-3 px-5 py-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 text-sm font-medium">
+              <CheckCircle className="h-5 w-5 flex-shrink-0 text-emerald-400" />
+              <div className="text-slate-600 dark:text-slate-300">
                 <span className="font-bold text-foreground">Instant Plan Upgrades Available</span>
                 {" · "}Upgrades are open 24/7. Your quota updates immediately upon payment verification.
               </div>

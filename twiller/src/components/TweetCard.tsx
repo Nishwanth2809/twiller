@@ -424,7 +424,7 @@ export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onB
                   onClick={handleBookmark}
                   disabled={actionLoading}
                   className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full p-2 hover:bg-cyan-500/10 transition-colors ${
-                    isBookmarked ? "text-accent" : "text-text-muted hover:text-accent"
+                    isBookmarked ? "text-cyan-500 dark:text-cyan-400" : "text-text-muted hover:text-cyan-500 dark:hover:text-cyan-400"
                   }`}
                   aria-label={isBookmarked ? "Remove from Saved" : "Save post"}
                   aria-pressed={isBookmarked}

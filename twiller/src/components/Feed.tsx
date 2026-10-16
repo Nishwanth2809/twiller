@@ -265,8 +265,8 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
       <p role="status" aria-live="polite" className="sr-only">{postAnnouncement}</p>
 
       {/* Sticky feed header with Home and compact workspace control */}
-      <div className="sticky top-0 bg-black/90 backdrop-blur-md border-b border-gray-800 z-10 px-4 py-3 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-white tracking-tight">Home</h1>
+      <div className="sticky top-0 z-10 mb-3 px-5 py-2.5 flex items-center justify-between rounded-full border border-border bg-surface/90 backdrop-blur-md shadow-sm">
+        <h1 className="text-xl font-bold text-foreground tracking-tight pl-1">Home</h1>
         <div className="flex items-center gap-2">
           {/* Feed mode selector */}
           <DropdownMenu>
@@ -274,10 +274,10 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
               <button
                 type="button"
                 aria-label="Feed mode selector"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-700 bg-gray-900/80 hover:bg-gray-800 text-sm font-medium text-gray-200 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 max-w-[140px] sm:max-w-none"
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-border bg-surface hover:bg-surface-hover text-sm font-medium text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary max-w-[140px] sm:max-w-none"
               >
                 <span className="truncate">{currentModeLabel}</span>
-                <ChevronDown className="h-4 w-4 shrink-0 text-gray-400" />
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent

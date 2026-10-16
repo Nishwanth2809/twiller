@@ -18,7 +18,7 @@ type NotificationItem = {
 
 const descriptions = { follow: "followed you", like: "liked your post", repost: "echoed your post", reply: "replied to your post", mention: "mentioned you in a post" };
 const icons = { follow: UserPlus, like: Heart, repost: Repeat2, reply: MessageCircle, mention: MessageCircle };
-const iconColors = { follow: "text-primary", like: "text-like", repost: "text-emerald-500", reply: "text-accent", mention: "text-accent" };
+const iconColors = { follow: "text-primary", like: "text-like", repost: "text-emerald-500", reply: "text-cyan-500 dark:text-cyan-400", mention: "text-cyan-500 dark:text-cyan-400" };
 
 export default function NotificationsPage({ onNavigate }: { onNavigate?: (page: string) => void }) {
   const { user } = useAuth();
