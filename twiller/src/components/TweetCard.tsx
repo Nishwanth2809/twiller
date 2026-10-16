@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/context/ToastContext";
 import axiosInstance from "@/lib/axiosInstance";
 import AccessibleDialog from "./ui/AccessibleDialog";
 import TopicChips from "./TopicChips";
@@ -39,6 +40,13 @@ interface TweetCardProps {
 export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onBookmarkRemoved }: TweetCardProps) {
   const { user, refreshUser } = useAuth();
   const router = useRouter();
+  let toastContext: ReturnType<typeof useToast> | null = null;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    toastContext = useToast();
+  } catch {
+    toastContext = null;
+  }
   const [tweetState, setTweetState] = useState(tweet);
   const [actionLoading, setActionLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -48,9 +56,13 @@ export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onB
   const go = (path: string) => onNavigate ? onNavigate(path) : router.push(path.startsWith("user/") ? `/${path.slice(5)}` : `/${path}`);
 
   const showToast = (msg: string, isError = false) => {
-    setToastMsg(msg);
-    setToastIsError(isError);
-    setTimeout(() => setToastMsg(""), 2500);
+    if (toastContext?.showToast) {
+      toastContext.showToast(msg, isError ? "error" : "success");
+    } else {
+      setToastMsg(msg);
+      setToastIsError(isError);
+      setTimeout(() => setToastMsg(""), 2500);
+    }
   };
 
   const isLiked = tweetState.likedBy?.some(
@@ -211,16 +223,17 @@ export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onB
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && (
         <AccessibleDialog open onClose={() => setShowDeleteConfirm(false)} role="alertdialog" labelledBy={`delete-post-title-${tweetState._id}`} describedBy={`delete-post-description-${tweetState._id}`} closeOnBackdrop>
-          <div className="w-full max-w-sm rounded-2xl border border-gray-700 bg-black p-6 text-white shadow-2xl">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 text-text shadow-2xl">
             <h2 id={`delete-post-title-${tweetState._id}`} className="mb-2 text-xl font-bold">Delete post?</h2>
-            <p id={`delete-post-description-${tweetState._id}`} className="mb-6 text-sm text-gray-400">
+            <p id={`delete-post-description-${tweetState._id}`} className="mb-6 text-sm text-text-muted">
               This can't be undone and it will be removed from your profile.
             </p>
             <div className="space-y-3">
               <Button
                 type="button"
                 onClick={handleDelete}
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold rounded-full"
+                variant="destructive"
+                className="w-full font-bold rounded-full"
               >
                 Delete
               </Button>
@@ -229,7 +242,7 @@ export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onB
                 type="button"
                 onClick={() => setShowDeleteConfirm(false)}
                 variant="outline"
-                className="w-full border-gray-700 text-white hover:bg-gray-900 rounded-full"
+                className="w-full rounded-full"
               >
                 Cancel
               </Button>
@@ -238,9 +251,9 @@ export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onB
         </AccessibleDialog>
       )}
 
-      {/* Toast notification */}
-      {toastMsg && (
-        <div role={toastIsError ? "alert" : "status"} aria-live={toastIsError ? "assertive" : "polite"} className={`fixed bottom-6 left-1/2 -translate-x-1/2 ${toastIsError ? "bg-red-700" : "bg-blue-600"} text-white px-5 py-2.5 rounded-full text-sm font-medium shadow-lg z-50 pointer-events-none animate-in fade-in slide-in-from-bottom-2`}>
+      {/* Fallback Toast notification if rendered outside ToastProvider */}
+      {toastMsg && !toastContext && (
+        <div role={toastIsError ? "alert" : "status"} aria-live={toastIsError ? "assertive" : "polite"} className={`fixed bottom-6 left-1/2 -translate-x-1/2 ${toastIsError ? "bg-rose-600" : "bg-primary"} text-white px-5 py-2.5 rounded-full text-sm font-medium shadow-lg z-50 pointer-events-none animate-in fade-in slide-in-from-bottom-2`}>
           {toastMsg}
         </div>
       )}
@@ -254,19 +267,19 @@ export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onB
             handleCardClick();
           }
         }}
-        className="twiller-post bg-black border-b border-gray-800 hover:bg-gray-950/50 transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+        className="twiller-post bg-surface/20 border-b border-border hover:bg-surface-hover/60 transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
         onClick={handleCardClick}
       >
         <div className="p-4">
           <div className="flex space-x-3">
             {/* Avatar */}
-            <button type="button" aria-label={`View ${tweetState.author?.displayName || tweetState.author?.username || "author"}'s profile`} onClick={handleAuthorClick} className="flex min-h-11 min-w-11 shrink-0 self-start items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">
-              <Avatar className="h-10 w-10 cursor-pointer hover:opacity-80 transition-opacity">
+            <button type="button" aria-label={`View ${tweetState.author?.displayName || tweetState.author?.username || "author"}'s profile`} onClick={handleAuthorClick} className="flex min-h-11 min-w-11 shrink-0 self-start items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+              <Avatar className="h-10 w-10 cursor-pointer hover:opacity-85 transition-opacity ring-1 ring-border">
                 <AvatarImage
                   src={tweetState.author?.avatar || undefined}
                   alt=""
                 />
-                <AvatarFallback aria-hidden="true" className="bg-gray-800 text-white font-semibold">
+                <AvatarFallback aria-hidden="true" className="bg-primary-soft text-primary font-bold">
                   {tweetState.author?.displayName?.[0]?.toUpperCase() || "?"}
                 </AvatarFallback>
               </Avatar>
@@ -279,16 +292,16 @@ export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onB
                   type="button"
                   aria-label={`View ${tweetState.author?.displayName || tweetState.author?.username || "author"}'s profile`}
                   onClick={handleAuthorClick}
-                  className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+                  className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                 >
-                  <span className="font-bold text-white hover:underline leading-tight">
+                  <span className="font-bold text-text hover:underline leading-tight">
                     {tweetState.author?.displayName}
                   </span>
-                  <span className="text-gray-500 text-sm leading-tight">
+                  <span className="text-text-muted text-sm leading-tight">
                     @{tweetState.author?.username}
                   </span>
-                  <span className="text-gray-600">·</span>
-                  <span className="text-gray-500 text-sm leading-tight">
+                  <span className="text-text-muted">·</span>
+                  <span className="text-text-muted text-sm leading-tight">
                     {formatTimestamp(tweetState.timestamp)}
                   </span>
                 </button>
@@ -299,28 +312,28 @@ export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onB
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-11 w-11 rounded-full p-1.5 hover:bg-gray-800 text-gray-500 hover:text-white -mt-1 -mr-1 flex-shrink-0"
+                      className="h-11 w-11 rounded-full p-1.5 hover:bg-surface-hover text-text-muted hover:text-text -mt-1 -mr-1 flex-shrink-0"
                       aria-label="More options"
                     >
                       <MoreHorizontal className="h-5 w-5" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
-                    className="bg-black border-gray-800 text-white shadow-2xl"
+                    className="bg-surface border-border text-text shadow-2xl"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <DropdownMenuItem
-                      className="hover:bg-gray-900 cursor-pointer gap-2"
+                      className="hover:bg-surface-hover cursor-pointer gap-2"
                       onClick={handleShare}
                     >
-                      <LinkIcon className="h-4 w-4" />
+                      <LinkIcon className="h-4 w-4 text-text-muted" />
                       Copy link
                     </DropdownMenuItem>
                     {(isOwner || user?.role === "admin") && (
                       <>
-                        <DropdownMenuSeparator className="bg-gray-800" />
+                        <DropdownMenuSeparator className="bg-border" />
                         <DropdownMenuItem
-                          className="text-red-400 hover:bg-red-900/20 hover:text-red-400 cursor-pointer gap-2"
+                          className="text-rose-500 hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400 cursor-pointer gap-2"
                           onClick={(e) => {
                             e.stopPropagation();
                             setShowDeleteConfirm(true);
@@ -338,13 +351,13 @@ export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onB
               {/* Content */}
               <TopicChips topics={tweetState.topics} />
               <CircleChip circle={tweetState.circle} />
-              <div className="text-white mb-3 leading-relaxed text-sm break-words">
+              <div className="text-text mb-3 leading-relaxed text-sm break-words">
                 {tweetState.content}
               </div>
 
               {/* Image */}
               {tweetState.image && (
-                <div className="mb-3 rounded-2xl overflow-hidden border border-gray-800">
+                <div className="mb-3 rounded-2xl overflow-hidden border border-border">
                   <img
                     src={tweetState.image}
                     alt={`Image shared by ${tweetState.author?.displayName || tweetState.author?.username || "a Twiller user"}`}
@@ -355,7 +368,7 @@ export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onB
 
               {/* Audio */}
               {tweetState.audio && (
-                <div className="mb-3 rounded-xl overflow-hidden border border-gray-800 bg-gray-900/50 p-2">
+                <div className="mb-3 rounded-xl overflow-hidden border border-border bg-surface-hover/50 p-2">
                   <audio controls src={tweetState.audio} className="w-full h-10" />
                 </div>
               )}
@@ -365,18 +378,18 @@ export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onB
                 {/* Reply */}
                 <button
                   onClick={handleReply}
-                  className="flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full p-2 hover:bg-blue-900/20 text-gray-500 hover:text-blue-400 transition-colors group"
+                  className="flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full p-2 hover:bg-primary-soft/50 text-text-muted hover:text-primary transition-colors group"
                   aria-label={`Reply, ${formatNumber(tweetState.comments)} replies`}
                 >
-                  <MessageCircle aria-hidden="true" className="h-4.5 w-4.5 group-hover:text-blue-400 h-[18px] w-[18px]" />
+                  <MessageCircle aria-hidden="true" className="group-hover:text-primary h-[18px] w-[18px]" />
                   <span className="text-xs">{formatNumber(tweetState.comments)}</span>
                 </button>
 
                 {/* Retweet */}
                 <button
                   onClick={handleRetweet}
-                  className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full p-2 hover:bg-violet-900/20 transition-colors group ${
-                    isRetweet ? "text-violet-400" : "text-gray-500 hover:text-violet-400"
+                  className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full p-2 hover:bg-emerald-500/10 transition-colors group ${
+                    isRetweet ? "text-emerald-500 font-semibold" : "text-text-muted hover:text-emerald-500"
                   }`}
                   aria-label={`${isRetweet ? "Remove your echo counter contribution" : "Add to the echo counter"}, ${formatNumber(tweetState.retweets)} ${tweetState.retweets === 1 ? "echo" : "echoes"}. This does not share to followers’ feeds.`}
                   title="Echoes currently update this post’s count only; they are not distributed to followers’ feeds."
@@ -390,8 +403,8 @@ export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onB
                 {/* Like */}
                 <button
                   onClick={handleLike}
-                  className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full p-2 hover:bg-red-900/20 transition-colors group ${
-                    isLiked ? "text-red-500" : "text-gray-500 hover:text-red-400"
+                  className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full p-2 hover:bg-rose-500/10 transition-colors group ${
+                    isLiked ? "text-like font-semibold" : "text-text-muted hover:text-like"
                   }`}
                   aria-label={`${isLiked ? "Unlike" : "Like"}, ${formatNumber(tweetState.likes)} likes`}
                   aria-pressed={isLiked}
@@ -399,8 +412,8 @@ export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onB
                 >
                   <Heart
                     aria-hidden="true"
-                    className={`h-[18px] w-[18px] transition-all ${
-                      isLiked ? "fill-current text-red-500" : "group-hover:text-red-400"
+                    className={`h-[18px] w-[18px] transition-transform duration-150 active:scale-125 ${
+                      isLiked ? "fill-current text-like scale-105" : "group-hover:text-like"
                     }`}
                   />
                   <span className="text-xs">{formatNumber(tweetState.likes)}</span>
@@ -410,8 +423,8 @@ export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onB
                 <button
                   onClick={handleBookmark}
                   disabled={actionLoading}
-                  className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full p-2 hover:bg-blue-900/20 transition-colors ${
-                    isBookmarked ? "text-blue-400" : "text-gray-500 hover:text-blue-400"
+                  className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full p-2 hover:bg-cyan-500/10 transition-colors ${
+                    isBookmarked ? "text-accent" : "text-text-muted hover:text-accent"
                   }`}
                   aria-label={isBookmarked ? "Remove from Saved" : "Save post"}
                   aria-pressed={isBookmarked}
@@ -426,7 +439,7 @@ export default function TweetCard({ tweet, onDeleted, onUpdated, onNavigate, onB
                 {/* Share */}
                 <button
                   onClick={handleShare}
-                  className="flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full p-2 hover:bg-blue-900/20 text-gray-500 hover:text-blue-400 transition-colors"
+                  className="flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full p-2 hover:bg-primary-soft/50 text-text-muted hover:text-primary transition-colors"
                   aria-label="Share"
                 >
                   <Share aria-hidden="true" className="h-[18px] w-[18px]" />

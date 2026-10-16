@@ -186,38 +186,38 @@ export default function RightSidebar({ onNavigate }: RightSidebarProps) {
 
       {/* People — from real DB */}
       {suggestedUsers.length > 0 && (
-        <Card className="twiller-people-card bg-gray-900 border-gray-800">
+        <Card className="twiller-people-card bg-surface/40 border-border">
           <CardContent className="p-4">
-            <div className="mb-4 flex items-center justify-between gap-2"><h2 className="text-white font-semibold">Discover people</h2><button type="button" className="min-h-11 text-xs text-blue-400 hover:underline" onClick={() => onNavigate?.("explore")}>See all</button></div>
+            <div className="mb-4 flex items-center justify-between gap-2"><h2 className="text-text font-semibold">Discover people</h2><button type="button" className="min-h-11 text-xs text-primary hover:underline font-medium" onClick={() => onNavigate?.("explore")}>See all</button></div>
             <div className="space-y-4">
               {suggestedUsers.map((su) => {
                 const isFollowing = followingIds.has(su._id?.toString());
                 return (
                   <div key={su._id} className="flex items-center justify-between">
                     <Link
-                      className="flex min-h-11 items-center space-x-3 min-w-0 rounded-lg"
+                      className="flex min-h-11 items-center space-x-3 min-w-0 rounded-lg group"
                       href={`/${encodeURIComponent(su.username)}`}
                       aria-label={`View ${su.displayName || su.username}'s profile`}
                     >
-                      <Avatar className="h-10 w-10 flex-shrink-0">
+                      <Avatar className="h-10 w-10 flex-shrink-0 ring-1 ring-border">
                         <AvatarImage src={su.avatar || undefined} alt="" />
-                        <AvatarFallback aria-hidden="true" className="bg-gray-700 text-white">
-                          {su.displayName?.[0]}
+                        <AvatarFallback aria-hidden="true" className="bg-primary-soft text-primary font-bold">
+                          {su.displayName?.[0] || su.username?.[0] || "U"}
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">
-                        <div className="text-white font-semibold truncate">{su.displayName}</div>
-                        <span className="text-gray-400 text-sm truncate">@{su.username}</span>
+                        <div className="text-text font-semibold truncate group-hover:underline">{su.displayName}</div>
+                        <span className="text-text-muted text-sm truncate">@{su.username}</span>
                       </div>
                     </Link>
                     <Button
                       variant={isFollowing ? "outline" : "default"}
                       aria-label={`${isFollowing ? "Unfollow" : "Follow"} ${su.displayName || su.username}`}
                       aria-pressed={isFollowing}
-                      className={`twiller-follow-button ml-3 flex-shrink-0 rounded-full px-4 font-semibold text-sm ${
+                      className={`twiller-follow-button ml-3 flex-shrink-0 rounded-full px-4 font-semibold text-sm transition-all ${
                         isFollowing
-                          ? "bg-transparent border-gray-600 text-white hover:border-red-600 hover:text-red-400"
-                          : "bg-white text-black hover:bg-gray-200"
+                          ? "border-border text-text hover:border-rose-500 hover:text-rose-500 hover:bg-rose-500/10"
+                          : "bg-primary text-white hover:bg-primary-hover active:scale-95 shadow-xs"
                       }`}
                       onClick={() => handleFollow(su._id?.toString())}
                     >

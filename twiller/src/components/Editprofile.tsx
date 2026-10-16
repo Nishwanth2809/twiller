@@ -106,28 +106,28 @@ const Editprofile = ({ isopen, onclose }: any) => {
 
   return (
     <AccessibleDialog open={isopen} onClose={onclose} labelledBy="edit-profile-title">
-      <Card className="w-full max-w-2xl bg-black border-gray-800 text-white max-h-[90vh] overflow-y-auto">
-        <CardHeader className="relative pb-4 border-b border-gray-800">
+      <Card className="w-full max-w-2xl bg-surface border-border text-foreground max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl">
+        <CardHeader className="relative pb-4 border-b border-border bg-surface/80 backdrop-blur-md sticky top-0 z-20">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               <Button
                 variant="ghost"
                 size="icon"
                 aria-label="Close edit profile"
                 autoFocus
-                className="text-white bg-black hover:bg-gray-900"
+                className="text-foreground hover:bg-surface-hover rounded-full transition-colors"
                 onClick={() => { setAvatarPreview(null); onclose(); }}
                 disabled={isLoading}
               >
                 <X className="h-5 w-5" />
               </Button>
-              <CardTitle id="edit-profile-title" className="text-xl font-bold">Edit profile</CardTitle>
+              <CardTitle id="edit-profile-title" className="text-xl font-bold tracking-tight">Edit profile</CardTitle>
             </div>
             <Button
               type="submit"
               form="edit-profile-form"
               aria-busy={isLoading}
-              className="bg-white text-black hover:bg-gray-200 font-semibold rounded-full px-6"
+              className="bg-primary text-white hover:bg-primary-hover font-semibold rounded-full px-6 transition-all active:scale-95 shadow-sm"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -144,7 +144,7 @@ const Editprofile = ({ isopen, onclose }: any) => {
 
         <CardContent className="p-0">
           {error.general && (
-            <div role="alert" className="bg-red-900/20 border border-red-800 rounded-lg p-3 text-red-400 text-sm m-4">
+            <div role="alert" className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-red-400 text-sm m-4">
               {error.general}
             </div>
           )}
@@ -152,14 +152,14 @@ const Editprofile = ({ isopen, onclose }: any) => {
           <form id="edit-profile-form" onSubmit={handleSubmit}>
             {/* Cover Photo */}
             <div className="relative">
-              <div aria-hidden="true" className="h-48 bg-gradient-to-r from-indigo-600 to-violet-500 relative" />
+              <div aria-hidden="true" className="h-44 bg-gradient-to-r from-primary via-indigo-600 to-accent relative overflow-hidden" />
 
               {/* Profile Picture */}
               <div className="absolute -bottom-16 left-4">
                 <div className="relative">
-                  <Avatar className="h-32 w-32 border-4 border-black">
+                  <Avatar className="h-32 w-32 border-4 border-surface shadow-md">
                     <AvatarImage src={avatarPreview || formData.avatar || undefined} alt="" />
-                    <AvatarFallback aria-hidden="true" className="text-2xl">
+                    <AvatarFallback aria-hidden="true" className="text-2xl bg-surface-hover text-foreground font-bold">
                       {user?.displayName?.[0]}
                     </AvatarFallback>
                   </Avatar>
@@ -175,7 +175,7 @@ const Editprofile = ({ isopen, onclose }: any) => {
                     variant="ghost"
                     size="sm"
                     aria-label="Choose a profile photo"
-                    className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-3 rounded-full bg-black/70 hover:bg-black/90"
+                    className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-3 rounded-full bg-black/60 hover:bg-black/80 text-white backdrop-blur-sm transition-transform active:scale-90"
                     disabled={isLoading}
                     onClick={() =>
                       document.getElementById("avatarUpload")?.click()
@@ -187,10 +187,10 @@ const Editprofile = ({ isopen, onclose }: any) => {
               </div>
             </div>
 
-            <div className="p-4 mt-16 space-y-6">
+            <div className="p-4 sm:p-6 mt-16 space-y-6">
               {/* Display Name */}
               <div className="space-y-2">
-                <Label htmlFor="displayName" className="text-white">
+                <Label htmlFor="displayName" className="text-foreground font-medium">
                   Name
                 </Label>
                 <Input
@@ -203,7 +203,7 @@ const Editprofile = ({ isopen, onclose }: any) => {
                   onChange={(e) =>
                     handleInputChange("displayName", e.target.value)
                   }
-                  className="bg-transparent border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
+                  className="bg-surface border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-transparent rounded-xl"
                   placeholder="Your display name"
                   maxLength={50}
                   disabled={isLoading}
@@ -212,7 +212,7 @@ const Editprofile = ({ isopen, onclose }: any) => {
                   {error.displayName && (
                     <p id="edit-display-name-error" aria-live="polite" className="text-red-400">{error.displayName}</p>
                   )}
-                  <p id="edit-display-name-help" className="text-gray-400 ml-auto">
+                  <p id="edit-display-name-help" className="text-muted-foreground ml-auto">
                     {formData.displayName.length}/50
                   </p>
                 </div>
@@ -220,7 +220,7 @@ const Editprofile = ({ isopen, onclose }: any) => {
 
               {/* Bio */}
               <div className="space-y-2">
-                <Label htmlFor="bio" className="text-white">
+                <Label htmlFor="bio" className="text-foreground font-medium">
                   Bio
                 </Label>
                 <Textarea
@@ -229,14 +229,14 @@ const Editprofile = ({ isopen, onclose }: any) => {
                   aria-describedby={error.bio ? "edit-bio-error" : "edit-bio-help"}
                   value={formData.bio}
                   onChange={(e) => handleInputChange("bio", e.target.value)}
-                  className="bg-transparent border-gray-600 text-white placeholder-gray-400 focus:border-blue-500 resize-none min-h-[100px]"
+                  className="bg-surface border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-transparent rounded-xl resize-none min-h-[100px]"
                   placeholder="Tell the world about yourself"
                   maxLength={160}
                   disabled={isLoading}
                 />
                 <div className="flex justify-between text-sm">
                   {error.bio && <p id="edit-bio-error" aria-live="polite" className="text-red-400">{error.bio}</p>}
-                  <p id="edit-bio-help" className="text-gray-400 ml-auto">
+                  <p id="edit-bio-help" className="text-muted-foreground ml-auto">
                     {formData.bio.length}/160
                   </p>
                 </div>
@@ -244,11 +244,11 @@ const Editprofile = ({ isopen, onclose }: any) => {
 
               {/* Location */}
               <div className="space-y-2">
-                <Label htmlFor="location" className="text-white">
+                <Label htmlFor="location" className="text-foreground font-medium">
                   Location
                 </Label>
                 <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                  <MapPin className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                   <Input
                     id="location"
                     type="text"
@@ -258,7 +258,7 @@ const Editprofile = ({ isopen, onclose }: any) => {
                     onChange={(e) =>
                       handleInputChange("location", e.target.value)
                     }
-                    className="pl-10 bg-transparent border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
+                    className="pl-10 bg-surface border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-transparent rounded-xl"
                     placeholder="Where are you located?"
                     maxLength={30}
                     disabled={isLoading}
@@ -268,7 +268,7 @@ const Editprofile = ({ isopen, onclose }: any) => {
                   {error.location && (
                     <p id="edit-location-error" aria-live="polite" className="text-red-400">{error.location}</p>
                   )}
-                  <p id="edit-location-help" className="text-gray-400 ml-auto">
+                  <p id="edit-location-help" className="text-muted-foreground ml-auto">
                     {formData.location.length}/30
                   </p>
                 </div>
@@ -276,11 +276,11 @@ const Editprofile = ({ isopen, onclose }: any) => {
 
               {/* Website */}
               <div className="space-y-2">
-                <Label htmlFor="website" className="text-white">
+                <Label htmlFor="website" className="text-foreground font-medium">
                   Website
                 </Label>
                 <div className="relative">
-                  <LinkIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                  <LinkIcon className="absolute left-3.5 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                   <Input
                     id="website"
                     type="text"
@@ -290,7 +290,7 @@ const Editprofile = ({ isopen, onclose }: any) => {
                     onChange={(e) =>
                       handleInputChange("website", e.target.value)
                     }
-                    className="pl-10 bg-transparent border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
+                    className="pl-10 bg-surface border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-transparent rounded-xl"
                     placeholder="Your website URL"
                     maxLength={100}
                     disabled={isLoading}
@@ -300,35 +300,34 @@ const Editprofile = ({ isopen, onclose }: any) => {
                   {error.website && (
                     <p id="edit-website-error" aria-live="polite" className="text-red-400">{error.website}</p>
                   )}
-                  <p id="edit-website-help" className="text-gray-400 ml-auto">
+                  <p id="edit-website-help" className="text-muted-foreground ml-auto">
                     {formData.website.length}/100
                   </p>
                 </div>
               </div>
 
               {/* Notifications currently exist only as in-app activity. */}
-              <div className="flex items-center justify-between pt-4 border-t border-gray-800">
+              <div className="flex items-center justify-between pt-4 border-t border-border">
                 <div className="space-y-0.5">
-                  <Label className="text-white text-base">Activity</Label>
-                  <p className="text-gray-400 text-sm">
+                  <Label className="text-foreground text-base font-semibold">Activity</Label>
+                  <p className="text-muted-foreground text-sm">
                     Likes, follows, replies, and mentions appear in the Activity page. Browser push and keyword alerts are not available.
                   </p>
                 </div>
               </div>
 
               {/* Language Selector */}
-              <div className="flex items-center justify-between pt-4 border-t border-gray-800">
+              <div className="flex items-center justify-between pt-4 border-t border-border">
                 <div className="space-y-0.5">
-                  <Label className="text-white text-base">Interface Language</Label>
-                  <p className="text-gray-400 text-sm">The interface is currently available in English only.</p>
+                  <Label className="text-foreground text-base font-semibold">Interface Language</Label>
+                  <p className="text-muted-foreground text-sm">The interface is currently available in English only.</p>
                 </div>
-                <span className="rounded border border-gray-700 px-3 py-2 text-sm text-gray-400">English</span>
+                <span className="rounded-full border border-border bg-surface-hover px-3.5 py-1.5 text-xs font-semibold text-muted-foreground">English</span>
               </div>
             </div>
           </form>
         </CardContent>
       </Card>
-
     </AccessibleDialog>
   );
 };

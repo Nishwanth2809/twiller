@@ -194,29 +194,29 @@ export default function UserProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white max-w-2xl mx-auto border-x border-gray-800">
+    <div className="min-h-screen bg-background text-foreground max-w-2xl mx-auto border-x border-border">
       {/* Header */}
-      <div className="sticky top-0 bg-black/90 backdrop-blur-md border-b border-gray-800 z-10 px-4 py-3 flex items-center gap-4">
-        <button onClick={handleBack} className="p-2 rounded-full hover:bg-gray-900 transition-colors">
-          <ArrowLeft className="h-5 w-5 text-white" />
+      <div className="sticky top-0 bg-surface/80 backdrop-blur-md border-b border-border z-10 px-4 py-3 flex items-center gap-4">
+        <button onClick={handleBack} className="p-2 rounded-full hover:bg-surface-hover transition-colors">
+          <ArrowLeft className="h-5 w-5 text-text" />
         </button>
         <div>
-          <h1 className="text-xl font-bold text-white">{profileUser.displayName}</h1>
-          <p className="text-sm text-gray-400">{tweets.length} posts</p>
+          <h1 className="text-xl font-bold text-text">{profileUser.displayName}</h1>
+          <p className="text-sm text-text-muted">{tweets.length} posts</p>
         </div>
       </div>
-      {followError && <p role="alert" className="mx-4 mt-3 rounded-lg border border-red-900 bg-red-950/40 p-3 text-sm text-red-300">Your follow change couldn’t be saved. Please try again.</p>}
+      {followError && <p role="alert" className="mx-4 mt-3 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-500">Your follow change couldn’t be saved. Please try again.</p>}
 
       {/* Cover */}
-      <div className="h-48 bg-gradient-to-br from-indigo-600 to-violet-500 relative" />
+      <div className="h-48 bg-gradient-to-br from-primary via-indigo-600 to-accent relative" />
 
       {/* Profile Bar: Avatar + Action Button */}
       <div className="px-4 relative flex items-end justify-between -mt-14 mb-4">
         {/* Avatar */}
         <div className="relative">
-          <Avatar className="h-28 w-28 border-4 border-black rounded-full shadow-xl bg-black">
+          <Avatar className="h-28 w-28 border-4 border-background rounded-full shadow-xl bg-surface">
             <AvatarImage src={profileUser.avatar} alt="" className="object-cover" />
-            <AvatarFallback aria-hidden="true" className="bg-gray-800 text-white text-3xl">
+            <AvatarFallback aria-hidden="true" className="bg-primary-soft text-primary text-3xl font-bold">
               {profileUser.displayName?.[0]}
             </AvatarFallback>
           </Avatar>
@@ -227,7 +227,7 @@ export default function UserProfilePage() {
           {isOwnProfile ? (
             <Button
               variant="outline"
-              className="border-gray-600 text-white bg-transparent hover:bg-gray-900 font-semibold rounded-full px-6 transition-colors"
+              className="border-border text-text bg-surface hover:bg-surface-hover font-semibold rounded-full px-6 transition-colors"
               onClick={() => (window.location.href = "/?view=profile")}
             >
               Edit profile
@@ -236,10 +236,10 @@ export default function UserProfilePage() {
             <Button
               onClick={handleFollow}
               disabled={followLoading || !currentUser}
-              className={`rounded-full px-5 font-bold ${
+              className={`rounded-full px-5 font-bold transition-all ${
                 isFollowing
-                  ? "border border-gray-600 bg-transparent text-white hover:border-red-600 hover:text-red-400"
-                  : "bg-white text-black hover:bg-gray-200"
+                  ? "border border-border bg-surface text-text hover:border-rose-500 hover:text-rose-500 hover:bg-rose-500/10"
+                  : "bg-primary text-white hover:bg-primary-hover active:scale-95 shadow-xs"
               }`}
             >
               {isFollowing ? (
@@ -258,14 +258,14 @@ export default function UserProfilePage() {
 
       {/* Profile info */}
       <div className="px-4 pb-4">
-        <h2 className="text-2xl font-bold text-white">{profileUser.displayName}</h2>
-        <p className="text-gray-400">@{profileUser.username}</p>
+        <h2 className="text-2xl font-bold text-text">{profileUser.displayName}</h2>
+        <p className="text-text-muted">@{profileUser.username}</p>
 
         {profileUser.bio && (
-          <p className="text-white mt-3 leading-relaxed">{profileUser.bio}</p>
+          <p className="text-text mt-3 leading-relaxed">{profileUser.bio}</p>
         )}
 
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-gray-400 text-sm mt-3">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-text-muted text-sm mt-3">
           {profileUser.location && (
             <div className="flex items-center gap-1">
               <MapPin className="h-4 w-4" />
@@ -279,7 +279,7 @@ export default function UserProfilePage() {
                 href={profileUser.website.startsWith("http") ? profileUser.website : `https://${profileUser.website}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-400 hover:underline"
+                className="text-primary hover:underline"
               >
                 {profileUser.website}
               </a>
@@ -302,34 +302,34 @@ export default function UserProfilePage() {
         {/* Follower counts */}
         <div className="flex items-center gap-6 text-sm mt-3">
           <Link href={`/${encodeURIComponent(profileUser.username)}/following`} className="hover:underline">
-            <span className="font-bold text-white">{profileUser.following?.length ?? 0}</span>
-            <span className="text-gray-500 ml-1">Following</span>
+            <span className="font-bold text-text">{profileUser.following?.length ?? 0}</span>
+            <span className="text-text-muted ml-1">Following</span>
           </Link>
           <Link href={`/${encodeURIComponent(profileUser.username)}/followers`} className="hover:underline">
-            <span className="font-bold text-white">{profileUser.followers?.length ?? 0}</span>
-            <span className="text-gray-500 ml-1">Followers</span>
+            <span className="font-bold text-text">{profileUser.followers?.length ?? 0}</span>
+            <span className="text-text-muted ml-1">Followers</span>
           </Link>
         </div>
       </div>
 
       {/* Tabs */}
       <Tabs defaultValue="posts" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 bg-transparent border-b border-gray-800 rounded-none h-auto">
+        <TabsList className="grid w-full grid-cols-3 bg-transparent border-b border-border rounded-none h-auto">
           <TabsTrigger
             value="posts"
-            className="data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:rounded-none text-gray-400 hover:bg-gray-900/50 py-4 font-semibold"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:rounded-none text-text-muted hover:bg-surface-hover/50 py-4 font-semibold transition-colors"
           >
             Posts
           </TabsTrigger>
           <TabsTrigger
             value="media"
-            className="data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:rounded-none text-gray-400 hover:bg-gray-900/50 py-4 font-semibold"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:rounded-none text-text-muted hover:bg-surface-hover/50 py-4 font-semibold transition-colors"
           >
             Media
           </TabsTrigger>
           <TabsTrigger
             value="likes"
-            className="data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:rounded-none text-gray-400 hover:bg-gray-900/50 py-4 font-semibold"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:rounded-none text-text-muted hover:bg-surface-hover/50 py-4 font-semibold transition-colors"
           >
             Likes
           </TabsTrigger>

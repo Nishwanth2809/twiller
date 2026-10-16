@@ -8,6 +8,8 @@ import CookieNotice from "@/components/CookieNotice";
 import BackToTop from "@/components/BackToTop";
 import Script from "next/script";
 
+import { ToastProvider } from "@/context/ToastContext";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -38,11 +40,13 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ThemeProvider>
-          <AuthProvider>
-            {children}
-            <CookieNotice />
-            <BackToTop />
-          </AuthProvider>
+          <ToastProvider>
+            <AuthProvider>
+              {children}
+              <CookieNotice />
+              <BackToTop />
+            </AuthProvider>
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -282,7 +282,7 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="end"
-              className="w-48 bg-gray-950 border border-gray-800 text-gray-200 shadow-xl p-1 z-50 rounded-lg"
+              className="w-48 bg-surface border border-border text-text shadow-xl p-1 z-50 rounded-xl"
             >
               {FEED_MODES.map((item) => {
                 const isDisabled = !user && item.id !== "foryou";
@@ -292,14 +292,14 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
                     disabled={isDisabled}
                     onSelect={() => handleModeChange(item.id)}
                     onClick={() => handleModeChange(item.id)}
-                    className={`flex items-center justify-between cursor-pointer px-3 py-2 text-sm rounded-md transition-colors ${
+                    className={`flex items-center justify-between cursor-pointer px-3 py-2 text-sm rounded-lg transition-colors ${
                       isDisabled
                         ? "opacity-50 cursor-not-allowed"
-                        : "hover:bg-gray-800 focus:bg-gray-800"
-                    } ${mode === item.id ? "text-blue-400 font-semibold" : "text-gray-200"}`}
+                        : "hover:bg-surface-hover focus:bg-surface-hover"
+                    } ${mode === item.id ? "text-primary font-semibold bg-primary-soft/50" : "text-text"}`}
                   >
                     <span>{item.label}</span>
-                    {mode === item.id && <Check className="h-4 w-4 text-blue-400" />}
+                    {mode === item.id && <Check className="h-4 w-4 text-primary" />}
                   </DropdownMenuItem>
                 );
               })}
@@ -312,12 +312,12 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
             aria-label="Feed rules"
             disabled={!user}
             onClick={() => setRulesPanelOpen(true)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
               !user
-                ? "border-gray-800 bg-gray-900/40 text-gray-500 cursor-not-allowed"
+                ? "border-border bg-surface/40 text-text-muted cursor-not-allowed"
                 : rulesCount > 0
-                ? "border-blue-500/40 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 font-semibold"
-                : "border-gray-700 bg-gray-900/80 hover:bg-gray-800 text-gray-200 hover:text-white"
+                ? "border-primary/40 bg-primary-soft hover:bg-primary-soft/80 text-primary font-semibold"
+                : "border-border bg-surface hover:bg-surface-hover text-text"
             }`}
           >
             <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
@@ -332,9 +332,9 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
 
       <TweetComposer key={user?._id || "public"} onTweetPosted={handleNewTweet} onNavigate={onNavigate} />
 
-      <div className="divide-y divide-gray-800">
+      <div className="divide-y divide-border">
         {feedError && (
-          <div role="alert" className="p-4 text-sm text-red-400">
+          <div role="alert" className="p-4 text-sm text-rose-500">
             {feedError}{" "}
             <button
               className="underline"
@@ -347,13 +347,13 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
         {loading ? (
           <PostSkeleton count={5} />
         ) : tweets.length === 0 ? (
-          <Card className="bg-black border-none">
+          <Card className="bg-transparent border-none">
             <CardContent className="py-16 text-center">
-              <Feather className="h-12 w-12 text-gray-700 mx-auto mb-4" />
-              <h3 className="text-xl font-bold text-white mb-2">
+              <Feather className="h-12 w-12 text-text-muted mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-text mb-2">
                 {EMPTY_STATES[mode]?.title || "No posts yet"}
               </h3>
-              <p className="text-gray-500 text-sm max-w-sm mx-auto">
+              <p className="text-text-muted text-sm max-w-sm mx-auto">
                 {EMPTY_STATES[mode]?.description || "Be the first to post something!"}
               </p>
             </CardContent>

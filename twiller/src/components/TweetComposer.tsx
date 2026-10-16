@@ -56,6 +56,7 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
       const res = await axiosInstance.post("/post", tweetdata);
       onTweetPosted(res.data);
       setContent("");
+      try { localStorage.removeItem("twiller_draft_content"); } catch {}
       setSelectedTopics([]);
       setSelectedCircle(null);
       setimageurl("");
@@ -219,8 +220,17 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
                   aria-describedby={`${inputId}-counter`}
                   placeholder="What's on your mind?"
                   value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  className="bg-transparent border-none text-base text-white placeholder-gray-500 resize-none min-h-[76px] focus-visible:ring-0 focus-visible:ring-offset-0"
+                  onChange={(e) => {
+                    setContent(e.target.value);
+                    try { localStorage.setItem("twiller_draft_content", e.target.value); } catch {}
+                  }}
+                  onKeyDown={(e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && content.trim() && !isOverLimit && !isLoading) {
+                      e.preventDefault();
+                      handleSubmit(e);
+                    }
+                  }}
+                  className="bg-transparent border-none text-base text-text placeholder-text-muted resize-none min-h-[76px] focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
                 <span id={`${inputId}-counter`} className="sr-only">{characterCount} of {maxLength} characters used.</span>
                 <TopicSelector selected={selectedTopics} onChange={setSelectedTopics} disabled={isLoading} />
@@ -240,10 +250,10 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
                 )}
 
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-1 text-blue-400 sm:gap-4">
+                  <div className="flex items-center gap-1 text-primary sm:gap-4">
                     <label
                       htmlFor={`${inputId}-image`}
-                      className="relative flex h-11 w-11 items-center justify-center rounded-full hover:bg-blue-900/20 focus-within:outline focus-within:outline-2 focus-within:outline-blue-500"
+                      className="relative flex h-11 w-11 items-center justify-center rounded-full hover:bg-primary-soft/50 focus-within:outline focus-within:outline-2 focus-within:outline-primary cursor-pointer transition-colors"
                     >
                       <Image aria-hidden="true" className="h-5 w-5" />
                       <span className="sr-only">Add an image</span>
@@ -259,7 +269,7 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
                     </label>
                     <label
                       htmlFor={`${inputId}-audio`}
-                      className="relative flex h-11 w-11 items-center justify-center rounded-full hover:bg-blue-900/20 focus-within:outline focus-within:outline-2 focus-within:outline-blue-500"
+                      className="relative flex h-11 w-11 items-center justify-center rounded-full hover:bg-primary-soft/50 focus-within:outline focus-within:outline-2 focus-within:outline-primary cursor-pointer transition-colors"
                     >
                       <Mic aria-hidden="true" className="h-5 w-5" />
                       <span className="sr-only">Add audio</span>
@@ -273,23 +283,23 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
                         disabled={isLoading}
                       />
                     </label>
-                    <Button type="button" disabled aria-label="Polls (unavailable)" title="Not available" variant="ghost" size="sm" className="h-11 w-11 rounded-full p-2 hover:bg-blue-900/20">
+                    <Button type="button" disabled aria-label="Polls (unavailable)" title="Not available" variant="ghost" size="sm" className="h-11 w-11 rounded-full p-2 opacity-50">
                       <BarChart3 aria-hidden="true" className="h-5 w-5" />
                     </Button>
-                    <Button type="button" disabled aria-label="Emoji picker (unavailable)" title="Not available" variant="ghost" size="sm" className="h-11 w-11 rounded-full p-2 hover:bg-blue-900/20">
+                    <Button type="button" disabled aria-label="Emoji picker (unavailable)" title="Not available" variant="ghost" size="sm" className="h-11 w-11 rounded-full p-2 opacity-50">
                       <Smile aria-hidden="true" className="h-5 w-5" />
                     </Button>
-                    <Button type="button" disabled aria-label="Schedule a post (unavailable)" title="Not available" variant="ghost" size="sm" className="h-11 w-11 rounded-full p-2 hover:bg-blue-900/20">
+                    <Button type="button" disabled aria-label="Schedule a post (unavailable)" title="Not available" variant="ghost" size="sm" className="h-11 w-11 rounded-full p-2 opacity-50">
                       <Calendar aria-hidden="true" className="h-5 w-5" />
                     </Button>
-                    <Button type="button" disabled aria-label="Add a location (unavailable)" title="Not available" variant="ghost" size="sm" className="h-11 w-11 rounded-full p-2 hover:bg-blue-900/20">
+                    <Button type="button" disabled aria-label="Add a location (unavailable)" title="Not available" variant="ghost" size="sm" className="h-11 w-11 rounded-full p-2 opacity-50">
                       <MapPin aria-hidden="true" className="h-5 w-5" />
                     </Button>
                   </div>
                   <div className="flex items-center space-x-4">
                     <div className="flex items-center space-x-2">
-                      <Globe className="h-4 w-4 text-blue-400" />
-                      <span className="text-sm text-blue-400 font-semibold">
+                      <Globe className="h-4 w-4 text-primary" />
+                      <span className="text-sm text-primary font-semibold">
                         Everyone can reply
                       </span>
                     </div>
@@ -305,7 +315,7 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
                                 stroke="currentColor"
                                 strokeWidth="2"
                                 fill="none"
-                                className="text-gray-700"
+                                className="text-border"
                               />
                               <circle
                                 cx="16"
@@ -320,18 +330,18 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
                                 }`}
                                 className={
                                   isOverLimit
-                                    ? "text-red-500"
+                                    ? "text-rose-500"
                                     : isNearLimit
-                                    ? "text-yellow-500"
-                                    : "text-blue-500"
+                                    ? "text-amber-500"
+                                    : "text-primary"
                                 }
                               />
                             </svg>
                           </div>
                           {isNearLimit && (
                             <span
-                              className={`text-sm ${
-                                isOverLimit ? "text-red-500" : "text-yellow-500"
+                              className={`text-sm font-semibold ${
+                                isOverLimit ? "text-rose-500" : "text-amber-500"
                               }`}
                             >
                               {maxLength - characterCount}
@@ -339,11 +349,12 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
                           )}
                         </div>
                       )}
-                      <Separator orientation="vertical" className="h-6 bg-gray-700" />
+                      <Separator orientation="vertical" className="h-6 bg-border" />
                       <Button
                         type="submit"
                         disabled={!content.trim() || isOverLimit || isLoading}
-                        className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-700 disabled:text-gray-500 text-white font-semibold rounded-full px-6"
+                        loading={isLoading}
+                        className="bg-primary hover:bg-primary-hover active:scale-95 text-white font-semibold rounded-full px-6 transition-all shadow-sm"
                       >
                         Post
                       </Button>

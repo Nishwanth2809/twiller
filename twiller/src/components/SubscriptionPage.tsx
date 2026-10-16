@@ -209,27 +209,27 @@ export default function SubscriptionPage() {
     <>
       <div className="min-h-screen pb-16">
         {/* Header */}
-        <div className="sticky top-0 bg-black/90 backdrop-blur-md border-b border-gray-800 z-10 px-4 py-4">
-          <h1 className="text-xl font-bold text-white">Premium Plans</h1>
-          <p className="text-sm text-gray-400">One-time plan purchases change your posting allowance for the plan period.</p>
+        <div className="sticky top-0 bg-surface/80 backdrop-blur-md border-b border-border z-10 px-4 py-4">
+          <h1 className="text-xl font-bold text-foreground tracking-tight">Premium Plans</h1>
+          <p className="text-sm text-muted-foreground">One-time plan purchases change your posting allowance for the plan period.</p>
         </div>
 
         <div className="max-w-4xl mx-auto px-4 py-8">
-          {pendingVerification && <button onClick={retryVerification} disabled={loading} className="mb-4 rounded-lg bg-amber-900/50 px-4 py-3 text-amber-200 disabled:opacity-50">{loading ? "Verifying…" : "Retry payment verification"}</button>}
+          {pendingVerification && <button onClick={retryVerification} disabled={loading} className="mb-4 rounded-xl bg-amber-500/10 border border-amber-500/30 px-4 py-3 text-amber-300 font-medium disabled:opacity-50">{loading ? "Verifying…" : "Retry payment verification"}</button>}
           {/* Time Window / Availability Banner */}
           {istInfo.enforceTimeGate ? (
             <div
               className={`mb-8 flex items-center gap-3 px-5 py-4 rounded-2xl border text-sm font-medium transition-all ${
                 istInfo.isOpen
-                  ? "bg-green-950/60 border-green-700 text-green-300"
-                  : "bg-red-950/60 border-red-800 text-red-300"
+                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                  : "bg-red-500/10 border-red-500/30 text-red-400"
               }`}
             >
               <Clock className="h-5 w-5 flex-shrink-0" />
               <div>
                 {istInfo.isOpen ? (
                   <>
-                    <span className="font-bold text-green-400">Payment window is OPEN</span>
+                    <span className="font-bold text-emerald-400">Payment window is OPEN</span>
                     {" · "}Current IST time: {istInfo.timeStr}
                   </>
                 ) : (
@@ -243,10 +243,10 @@ export default function SubscriptionPage() {
               </div>
             </div>
           ) : (
-            <div className="mb-8 flex items-center gap-3 px-5 py-4 rounded-2xl border border-sky-800/60 bg-sky-950/40 text-sky-200 text-sm font-medium">
-              <CheckCircle className="h-5 w-5 flex-shrink-0 text-sky-400" />
+            <div className="mb-8 flex items-center gap-3 px-5 py-4 rounded-2xl border border-accent/30 bg-accent/10 text-accent text-sm font-medium">
+              <CheckCircle className="h-5 w-5 flex-shrink-0 text-accent" />
               <div>
-                <span className="font-bold text-white">Instant Plan Upgrades Available</span>
+                <span className="font-bold text-foreground">Instant Plan Upgrades Available</span>
                 {" · "}Upgrades are open 24/7. Your quota updates immediately upon payment verification.
               </div>
             </div>
@@ -254,35 +254,35 @@ export default function SubscriptionPage() {
 
           {/* Current Usage */}
           {user && (
-            <div className="mb-8 p-5 rounded-2xl border border-gray-800 bg-gray-950">
+            <div className="mb-8 p-5 rounded-2xl border border-border bg-surface shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-white font-semibold text-base">Your Current Plan</span>
+                <span className="text-foreground font-semibold text-base">Your Current Plan</span>
                 <span
                   className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
                     currentPlan === "gold"
-                      ? "bg-yellow-500 text-yellow-900"
+                      ? "bg-amber-400/20 text-amber-400 border border-amber-400/30"
                       : currentPlan === "silver"
-                      ? "bg-slate-400 text-black"
+                      ? "bg-slate-300/20 text-slate-300 border border-slate-300/30"
                       : currentPlan === "bronze"
-                      ? "bg-amber-700 text-amber-100"
-                      : "bg-gray-700 text-gray-200"
+                      ? "bg-amber-700/20 text-amber-500 border border-amber-700/30"
+                      : "bg-surface-hover text-muted-foreground border border-border"
                   }`}
                 >
                   {currentPlan}
                 </span>
               </div>
-              <div className="text-gray-400 text-sm mb-2">Posts and replies used</div>
+              <div className="text-muted-foreground text-sm mb-2">Posts and replies used</div>
               <div className="flex items-center gap-3">
-                <div className="flex-1 bg-gray-800 rounded-full h-2.5 overflow-hidden">
+                <div className="flex-1 bg-surface-hover rounded-full h-2.5 overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
                       currentPlan === "gold"
-                        ? "bg-yellow-500"
+                        ? "bg-amber-400"
                         : tweetCount / planLimit >= 1
-                        ? "bg-red-500"
+                        ? "bg-rose-500"
                         : tweetCount / planLimit >= 0.8
-                        ? "bg-yellow-500"
-                        : "bg-blue-500"
+                        ? "bg-amber-500"
+                        : "bg-primary"
                     }`}
                     style={{
                       width: `${
@@ -291,12 +291,12 @@ export default function SubscriptionPage() {
                     }}
                   />
                 </div>
-                <span className="text-white font-mono text-sm whitespace-nowrap">
+                <span className="text-foreground font-mono text-sm whitespace-nowrap">
                   {tweetCount} / {planLimit === Infinity ? "∞" : planLimit}
                 </span>
               </div>
               {user?.planExpiresAt && (
-                <p className="text-gray-500 text-xs mt-2">
+                <p className="text-muted-foreground text-xs mt-2">
                   Plan expires:{" "}
                   {new Date(user.planExpiresAt).toLocaleDateString("en-IN", {
                     day: "numeric",
@@ -310,13 +310,13 @@ export default function SubscriptionPage() {
 
           {/* Success / Error Messages */}
           {successMsg && (
-            <div className="mb-6 flex items-start gap-3 p-4 rounded-2xl bg-green-950/60 border border-green-700 text-green-300 text-sm">
+            <div className="mb-6 flex items-start gap-3 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm">
               <CheckCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
               <span>{successMsg}</span>
             </div>
           )}
           {errorMsg && (
-            <div className="mb-6 flex items-start gap-3 p-4 rounded-2xl bg-red-950/60 border border-red-800 text-red-300 text-sm">
+            <div className="mb-6 flex items-start gap-3 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm">
               <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" />
               <span>{errorMsg}</span>
             </div>
@@ -335,11 +335,11 @@ export default function SubscriptionPage() {
                 <div
                   key={plan.id}
                   className={`relative rounded-2xl border overflow-hidden transition-all hover:scale-[1.01] ${plan.border} ${
-                    isCurrentPlan ? "ring-2 ring-blue-500" : ""
-                  } bg-gray-950`}
+                    isCurrentPlan ? "ring-2 ring-primary" : ""
+                  } bg-surface shadow-sm`}
                 >
                   {isCurrentPlan && (
-                    <div className="absolute top-0 left-0 bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-br-lg">
+                    <div className="absolute top-0 left-0 bg-primary text-white text-xs font-bold px-3 py-1 rounded-br-lg tracking-wider">
                       ACTIVE
                     </div>
                   )}
@@ -364,8 +364,8 @@ export default function SubscriptionPage() {
                   <div className="p-5">
                     <ul className="space-y-2 mb-6">
                       {plan.features.map((f) => (
-                        <li key={f} className="flex items-center gap-2 text-gray-300 text-sm">
-                          <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" />
+                        <li key={f} className="flex items-center gap-2 text-foreground/85 text-sm">
+                          <CheckCircle className="h-4 w-4 text-emerald-400 flex-shrink-0" />
                           {f}
                         </li>
                       ))}
@@ -382,10 +382,10 @@ export default function SubscriptionPage() {
                       }
                       className={`w-full py-3 rounded-full font-bold text-sm transition-all ${
                         isCurrentPlan
-                          ? "bg-blue-500/20 text-blue-400 border border-blue-500 cursor-default"
+                          ? "bg-primary/10 text-primary border border-primary/30 cursor-default"
                           : plan.disabled || !istInfo.isOpen || !isUpgrade
-                          ? "bg-gray-800 text-gray-500 cursor-not-allowed"
-                          : `bg-gradient-to-r ${plan.color} text-white hover:opacity-90 active:scale-95 shadow-lg`
+                          ? "bg-surface-hover text-muted-foreground cursor-not-allowed border border-border"
+                          : `bg-gradient-to-r ${plan.color} text-white hover:opacity-90 active:scale-95 shadow-md`
                       }`}
                     >
                       {isCurrentPlan
@@ -405,7 +405,7 @@ export default function SubscriptionPage() {
           </div>
 
           {/* Footer note */}
-          <p className="text-center text-gray-600 text-xs mt-8">
+          <p className="text-center text-muted-foreground text-xs mt-8">
             {istInfo.enforceTimeGate ? "Payments are accepted only between 10:00 AM – 11:00 AM IST daily. " : ""}Paid plans do not renew automatically and remain active for 30 days after verified payment. An invoice email is attempted after verification, but delivery can fail.
           </p>
         </div>

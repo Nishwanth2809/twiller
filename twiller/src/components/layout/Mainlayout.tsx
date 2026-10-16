@@ -3,7 +3,7 @@
 import { useAuth } from "@/context/AuthContext";
 import React, { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import LoadingSpinner from "../loading-spinner";
+import LoadingSpinner, { LoadingSplash } from "../loading-spinner";
 import Sidebar from "./Sidebar";
 import RightSidebar from "./Rightsidebar";
 import ProfilePage from "../ProfilePage";
@@ -104,14 +104,7 @@ const Mainlayout = ({ children }: { children: React.ReactNode }) => {
   }, [pathname]);
 
   if (isLoading && status === "initializing") {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <div className="mb-6 flex justify-center"><BrandLogo size="xl" wordmark /></div>
-          <LoadingSpinner size="lg" />
-        </div>
-      </div>
-    );
+    return <LoadingSplash message="Connecting to your network..." />;
   }
 
   const navigate = (page: string) => {
@@ -212,30 +205,32 @@ const Mainlayout = ({ children }: { children: React.ReactNode }) => {
       </div>
 
       {/* Mobile bottom navigation */}
-      <nav aria-label="Primary navigation" className="twiller-mobile-nav fixed bottom-0 left-0 right-0 bg-black/95 backdrop-blur-md border-t border-gray-800 flex items-center justify-around py-2 z-40 md:hidden safe-area-pb">
+      <nav aria-label="Primary navigation" className="twiller-mobile-nav fixed bottom-0 left-0 right-0 bg-surface/90 backdrop-blur-md border-t border-border flex items-center justify-around py-2 z-40 md:hidden safe-area-pb">
         <button
           onClick={() => navigate("home")}
-          className={`p-3 rounded-full transition-colors ${currentPage === "home" ? "text-white" : "text-gray-600"}`}
+          className={`relative p-3 rounded-full transition-colors flex flex-col items-center min-h-[44px] min-w-[44px] justify-center ${currentPage === "home" ? "text-primary font-bold" : "text-text-muted hover:text-text"}`}
           aria-label="Home"
           aria-current={currentPage === "home" ? "page" : undefined}
         >
           <svg className="h-6 w-6" fill={currentPage === "home" ? "currentColor" : "none"} stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
           </svg>
+          {currentPage === "home" && <span className="absolute bottom-1 size-1 rounded-full bg-primary" />}
         </button>
         <button
           onClick={() => navigate("explore")}
-          className={`p-3 rounded-full transition-colors ${(currentPage === "explore" || currentPage === "search") ? "text-white" : "text-gray-600"}`}
+          className={`relative p-3 rounded-full transition-colors flex flex-col items-center min-h-[44px] min-w-[44px] justify-center ${(currentPage === "explore" || currentPage === "search") ? "text-primary font-bold" : "text-text-muted hover:text-text"}`}
           aria-label="Discover"
           aria-current={(currentPage === "explore" || currentPage === "search") ? "page" : undefined}
         >
           <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
           </svg>
+          {(currentPage === "explore" || currentPage === "search") && <span className="absolute bottom-1 size-1 rounded-full bg-primary" />}
         </button>
         <button
           onClick={() => setShowComposer(true)}
-          className="p-3 bg-blue-500 hover:bg-blue-600 rounded-full text-white transition-colors shadow-lg"
+          className="p-3 bg-primary hover:bg-primary-hover active:scale-95 rounded-full text-white transition-all shadow-md shadow-primary/30 min-h-[44px] min-w-[44px] flex items-center justify-center"
           aria-label="Create new post"
         >
           <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -244,23 +239,28 @@ const Mainlayout = ({ children }: { children: React.ReactNode }) => {
         </button>
         <button
           onClick={() => navigate("notifications")}
-          className={`p-3 rounded-full transition-colors ${currentPage === "notifications" ? "text-white" : "text-gray-600"}`}
+          className={`relative p-3 rounded-full transition-colors flex flex-col items-center min-h-[44px] min-w-[44px] justify-center ${currentPage === "notifications" ? "text-primary font-bold" : "text-text-muted hover:text-text"}`}
           aria-label="Activity"
           aria-current={currentPage === "notifications" ? "page" : undefined}
         >
           <svg className="h-6 w-6" fill={currentPage === "notifications" ? "currentColor" : "none"} stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
           </svg>
+          {unreadCount > 0 && (
+            <span className="absolute top-2 right-2 size-2 rounded-full bg-primary ring-2 ring-background" />
+          )}
+          {currentPage === "notifications" && <span className="absolute bottom-1 size-1 rounded-full bg-primary" />}
         </button>
         <button
           onClick={() => navigate("profile")}
-          className={`p-3 rounded-full transition-colors ${currentPage === "profile" ? "text-white" : "text-gray-600"}`}
+          className={`relative p-3 rounded-full transition-colors flex flex-col items-center min-h-[44px] min-w-[44px] justify-center ${currentPage === "profile" ? "text-primary font-bold" : "text-text-muted hover:text-text"}`}
           aria-label="Profile"
           aria-current={currentPage === "profile" ? "page" : undefined}
         >
           <svg className="h-6 w-6" fill={currentPage === "profile" ? "currentColor" : "none"} stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
           </svg>
+          {currentPage === "profile" && <span className="absolute bottom-1 size-1 rounded-full bg-primary" />}
         </button>
         <MobileMoreMenu currentPage={currentPage} onNavigate={navigate} />
       </nav>

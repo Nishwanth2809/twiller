@@ -132,11 +132,11 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <div className="sticky top-0 bg-black/90 backdrop-blur-md border-b border-gray-800 z-10">
+      <div className="sticky top-0 bg-surface/80 backdrop-blur-md border-b border-border z-10">
         <div className="flex items-center px-4 py-3 space-x-4">
           <div>
-            <div aria-hidden="true" className="text-xl font-bold text-white">{user.displayName}</div>
-          <p className="text-sm text-gray-400">
+            <div aria-hidden="true" className="text-xl font-bold text-text">{user.displayName}</div>
+          <p className="text-sm text-text-muted">
               {loading ? "" : `${userTweets.length}${postsHasMore ? "+" : ""} posts`}
             </p>
           </div>
@@ -144,16 +144,15 @@ export default function ProfilePage() {
       </div>
 
       {/* Cover Photo */}
-      <div className="h-48 bg-gradient-to-r from-indigo-600 to-violet-500 relative">
-      </div>
+      <div className="h-48 bg-gradient-to-r from-primary via-indigo-600 to-accent relative" />
 
       {/* Profile Bar: Avatar + Action Button */}
       <div className="px-4 relative flex items-end justify-between -mt-16 mb-4">
         {/* Profile Picture */}
         <div className="relative">
-          <Avatar className="h-32 w-32 border-4 border-black rounded-full shadow-xl bg-black">
+          <Avatar className="h-32 w-32 border-4 border-background rounded-full shadow-xl bg-surface">
             <AvatarImage src={user.avatar || undefined} alt="" className="object-cover" />
-            <AvatarFallback aria-hidden="true" className="text-3xl font-bold bg-gradient-to-br from-indigo-600 to-violet-500 text-white">
+            <AvatarFallback aria-hidden="true" className="text-3xl font-bold bg-primary-soft text-primary">
               {user.displayName?.[0]?.toUpperCase()}
             </AvatarFallback>
           </Avatar>
@@ -163,7 +162,7 @@ export default function ProfilePage() {
         <div className="pb-1">
           <Button
             variant="outline"
-            className="border-gray-600 text-white bg-gray-950 hover:bg-gray-900 font-semibold rounded-full px-6 transition-colors"
+            className="border-border text-text bg-surface hover:bg-surface-hover font-semibold rounded-full px-6 transition-colors"
             onClick={() => setShowEditModal(true)}
           >
             Edit profile
@@ -175,18 +174,18 @@ export default function ProfilePage() {
       <div className="px-4 pb-4">
         <div className="flex items-start justify-between mb-3">
           <div>
-            <h1 className="text-2xl font-bold text-white">
+            <h1 className="text-2xl font-bold text-text">
               {user.displayName}
             </h1>
-            <p className="text-gray-400">@{user.username}</p>
+            <p className="text-text-muted">@{user.username}</p>
           </div>
         </div>
 
         {user.bio && (
-          <p className="text-white mb-3 leading-relaxed">{user.bio}</p>
+          <p className="text-text mb-3 leading-relaxed">{user.bio}</p>
         )}
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-gray-400 text-sm mb-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-text-muted text-sm mb-3">
           {user.location && (
             <div className="flex items-center space-x-1">
               <MapPin className="h-4 w-4 flex-shrink-0" />
@@ -200,7 +199,7 @@ export default function ProfilePage() {
                 href={user.website.startsWith("http") ? user.website : `https://${user.website}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-400 hover:underline"
+                className="text-primary hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
                 {user.website}
@@ -223,40 +222,40 @@ export default function ProfilePage() {
         {/* Follower / Following counts */}
         <div className="flex items-center space-x-6 text-sm mb-1">
           <Link href={`/${encodeURIComponent(user.username)}/following`} className="hover:underline">
-            <span className="font-bold text-white">{user.following?.length ?? 0}</span>
-            <span className="text-gray-500 ml-1">Following</span>
+            <span className="font-bold text-text">{user.following?.length ?? 0}</span>
+            <span className="text-text-muted ml-1">Following</span>
           </Link>
           <Link href={`/${encodeURIComponent(user.username)}/followers`} className="hover:underline">
-            <span className="font-bold text-white">{user.followers?.length ?? 0}</span>
-            <span className="text-gray-500 ml-1">Followers</span>
+            <span className="font-bold text-text">{user.followers?.length ?? 0}</span>
+            <span className="text-text-muted ml-1">Followers</span>
           </Link>
         </div>
       </div>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 bg-transparent border-b border-gray-800 rounded-none h-auto overflow-x-auto">
+        <TabsList className="grid w-full grid-cols-4 bg-transparent border-b border-border rounded-none h-auto overflow-x-auto">
           <TabsTrigger
             value="posts"
-            className="data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:rounded-none text-gray-400 hover:bg-gray-900/50 py-4 font-semibold"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:rounded-none text-text-muted hover:bg-surface-hover/50 py-4 font-semibold transition-colors"
           >
             Posts
           </TabsTrigger>
           <TabsTrigger
             value="replies"
-            className="data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:rounded-none text-gray-400 hover:bg-gray-900/50 py-4 font-semibold"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:rounded-none text-text-muted hover:bg-surface-hover/50 py-4 font-semibold transition-colors"
           >
             Replies
           </TabsTrigger>
           <TabsTrigger
             value="media"
-            className="data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:rounded-none text-gray-400 hover:bg-gray-900/50 py-4 font-semibold"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:rounded-none text-text-muted hover:bg-surface-hover/50 py-4 font-semibold transition-colors"
           >
             Media
           </TabsTrigger>
           <TabsTrigger
             value="sessions"
-            className="data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:rounded-none text-gray-400 hover:bg-gray-900/50 py-4 font-semibold"
+            className="data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:rounded-none text-text-muted hover:bg-surface-hover/50 py-4 font-semibold transition-colors"
           >
             Sessions
           </TabsTrigger>
