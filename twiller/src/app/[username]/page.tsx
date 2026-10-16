@@ -208,13 +208,14 @@ export default function UserProfilePage() {
       {followError && <p role="alert" className="mx-4 mt-3 rounded-lg border border-red-900 bg-red-950/40 p-3 text-sm text-red-300">Your follow change couldn’t be saved. Please try again.</p>}
 
       {/* Cover */}
-      <div className="relative">
-        <div className="h-48 bg-gradient-to-br from-indigo-600 to-violet-500" />
+      <div className="h-48 bg-gradient-to-br from-indigo-600 to-violet-500 relative" />
 
+      {/* Profile Bar: Avatar + Action Button */}
+      <div className="px-4 relative flex items-end justify-between -mt-14 mb-4">
         {/* Avatar */}
-        <div className="absolute -bottom-14 left-4">
-          <Avatar className="h-28 w-28 border-4 border-black">
-            <AvatarImage src={profileUser.avatar} alt="" />
+        <div className="relative">
+          <Avatar className="h-28 w-28 border-4 border-black rounded-full shadow-xl bg-black">
+            <AvatarImage src={profileUser.avatar} alt="" className="object-cover" />
             <AvatarFallback aria-hidden="true" className="bg-gray-800 text-white text-3xl">
               {profileUser.displayName?.[0]}
             </AvatarFallback>
@@ -222,11 +223,11 @@ export default function UserProfilePage() {
         </div>
 
         {/* Action button */}
-        <div className="flex justify-end p-4">
+        <div className="pb-1">
           {isOwnProfile ? (
             <Button
               variant="outline"
-              className="border-gray-600 text-white bg-transparent hover:bg-gray-900 font-semibold rounded-full px-6"
+              className="border-gray-600 text-white bg-transparent hover:bg-gray-900 font-semibold rounded-full px-6 transition-colors"
               onClick={() => (window.location.href = "/?view=profile")}
             >
               Edit profile
@@ -256,7 +257,7 @@ export default function UserProfilePage() {
       </div>
 
       {/* Profile info */}
-      <div className="px-4 pb-4 mt-16">
+      <div className="px-4 pb-4">
         <h2 className="text-2xl font-bold text-white">{profileUser.displayName}</h2>
         <p className="text-gray-400">@{profileUser.username}</p>
 

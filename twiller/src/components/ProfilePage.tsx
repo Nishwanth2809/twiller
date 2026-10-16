@@ -144,27 +144,26 @@ export default function ProfilePage() {
       </div>
 
       {/* Cover Photo */}
-      <div className="relative">
-        <div className="h-48 bg-gradient-to-r from-indigo-600 to-violet-500 relative">
-        </div>
+      <div className="h-48 bg-gradient-to-r from-indigo-600 to-violet-500 relative">
+      </div>
 
+      {/* Profile Bar: Avatar + Action Button */}
+      <div className="px-4 relative flex items-end justify-between -mt-16 mb-4">
         {/* Profile Picture */}
-        <div className="absolute -bottom-16 left-4">
-          <div className="relative">
-            <Avatar className="h-32 w-32 border-4 border-black">
-              <AvatarImage src={user.avatar || undefined} alt="" />
-              <AvatarFallback aria-hidden="true" className="text-3xl font-bold bg-gradient-to-br from-indigo-600 to-violet-500 text-white">
-                {user.displayName?.[0]?.toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-          </div>
+        <div className="relative">
+          <Avatar className="h-32 w-32 border-4 border-black rounded-full shadow-xl bg-black">
+            <AvatarImage src={user.avatar || undefined} alt="" className="object-cover" />
+            <AvatarFallback aria-hidden="true" className="text-3xl font-bold bg-gradient-to-br from-indigo-600 to-violet-500 text-white">
+              {user.displayName?.[0]?.toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
         </div>
 
         {/* Edit Profile Button */}
-        <div className="flex justify-end p-4">
+        <div className="pb-1">
           <Button
             variant="outline"
-            className="border-gray-600 text-white bg-gray-950 font-semibold rounded-full px-6"
+            className="border-gray-600 text-white bg-gray-950 hover:bg-gray-900 font-semibold rounded-full px-6 transition-colors"
             onClick={() => setShowEditModal(true)}
           >
             Edit profile
@@ -173,7 +172,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Profile Info */}
-      <div className="px-4 pb-4 mt-12">
+      <div className="px-4 pb-4">
         <div className="flex items-start justify-between mb-3">
           <div>
             <h1 className="text-2xl font-bold text-white">
