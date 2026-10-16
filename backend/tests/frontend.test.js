@@ -1447,6 +1447,7 @@ test("Mainlayout sync recognizes /settings pathname and /?view=settings query", 
       "../NotificationsPage": "NotificationsPage",
       "../MessagesPage": "MessagesPage",
       "../SubscriptionPage": "SubscriptionPage",
+      "../AdminPage": "AdminPage",
       "../BrandLogo": "BrandLogo",
       "../loading-spinner": "LoadingSpinner",
     });

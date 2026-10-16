@@ -135,16 +135,19 @@ const PLANS = {
 paymentDependencies.plans = PLANS;
 
 // ─── IST Time Gate Helper ─────────────────────────────────────────────────────
-function isPaymentWindowOpen() {
-  const now = new Date();
-  // Convert UTC to IST (UTC+5:30)
-  const istOffset = 5.5 * 60 * 60 * 1000;
-  const istTime = new Date(now.getTime() + istOffset);
-  const hours = istTime.getUTCHours();
-  const minutes = istTime.getUTCMinutes();
-  const totalMinutes = hours * 60 + minutes;
-  // 10:00 AM = 600 mins, 11:00 AM = 660 mins
-  return totalMinutes >= 600 && totalMinutes < 660;
+export function isPaymentWindowOpen(env = process.env) {
+  if (env.ENFORCE_PAYMENT_TIME_GATE === "true") {
+    const now = new Date();
+    // Convert UTC to IST (UTC+5:30)
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istTime = new Date(now.getTime() + istOffset);
+    const hours = istTime.getUTCHours();
+    const minutes = istTime.getUTCMinutes();
+    const totalMinutes = hours * 60 + minutes;
+    // 10:00 AM = 600 mins, 11:00 AM = 660 mins
+    return totalMinutes >= 600 && totalMinutes < 660;
+  }
+  return true;
 }
 
 // ─── Invoice Email Helper ─────────────────────────────────────────────────────

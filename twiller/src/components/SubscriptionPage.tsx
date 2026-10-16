@@ -63,6 +63,7 @@ const PLANS = [
 
 // ─── IST Time Check ───────────────────────────────────────────────────────────
 function getISTInfo() {
+  const enforceTimeGate = process.env.NEXT_PUBLIC_ENFORCE_PAYMENT_TIME_GATE === "true";
   const now = new Date();
   const istOffset = 5.5 * 60 * 60 * 1000;
   const istTime = new Date(now.getTime() + istOffset);
@@ -71,7 +72,13 @@ function getISTInfo() {
   const totalMinutes = hours * 60 + minutes;
   const pad = (n: number) => String(n).padStart(2, "0");
   const timeStr = `${pad(hours)}:${pad(minutes)} IST`;
-  return { isOpen: totalMinutes >= 600 && totalMinutes < 660, timeStr };
+  const inWindow = totalMinutes >= 600 && totalMinutes < 660;
+  return {
+    isOpen: !enforceTimeGate || inWindow,
+    enforceTimeGate,
+    inWindow,
+    timeStr,
+  };
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -209,31 +216,41 @@ export default function SubscriptionPage() {
 
         <div className="max-w-4xl mx-auto px-4 py-8">
           {pendingVerification && <button onClick={retryVerification} disabled={loading} className="mb-4 rounded-lg bg-amber-900/50 px-4 py-3 text-amber-200 disabled:opacity-50">{loading ? "Verifying…" : "Retry payment verification"}</button>}
-          {/* Time Window Banner */}
-          <div
-            className={`mb-8 flex items-center gap-3 px-5 py-4 rounded-2xl border text-sm font-medium transition-all ${
-              istInfo.isOpen
-                ? "bg-green-950/60 border-green-700 text-green-300"
-                : "bg-red-950/60 border-red-800 text-red-300"
-            }`}
-          >
-            <Clock className="h-5 w-5 flex-shrink-0" />
-            <div>
-              {istInfo.isOpen ? (
-                <>
-                  <span className="font-bold text-green-400">Payment window is OPEN</span>
-                  {" · "}Current IST time: {istInfo.timeStr}
-                </>
-              ) : (
-                <>
-                  <span className="font-bold text-red-400">Payment window is CLOSED</span>
-                  {" · "}Payments accepted only between{" "}
-                  <span className="font-bold">10:00 AM – 11:00 AM IST</span>
-                  {". "}Current time: {istInfo.timeStr}
-                </>
-              )}
+          {/* Time Window / Availability Banner */}
+          {istInfo.enforceTimeGate ? (
+            <div
+              className={`mb-8 flex items-center gap-3 px-5 py-4 rounded-2xl border text-sm font-medium transition-all ${
+                istInfo.isOpen
+                  ? "bg-green-950/60 border-green-700 text-green-300"
+                  : "bg-red-950/60 border-red-800 text-red-300"
+              }`}
+            >
+              <Clock className="h-5 w-5 flex-shrink-0" />
+              <div>
+                {istInfo.isOpen ? (
+                  <>
+                    <span className="font-bold text-green-400">Payment window is OPEN</span>
+                    {" · "}Current IST time: {istInfo.timeStr}
+                  </>
+                ) : (
+                  <>
+                    <span className="font-bold text-red-400">Payment window is CLOSED</span>
+                    {" · "}Payments accepted only between{" "}
+                    <span className="font-bold">10:00 AM – 11:00 AM IST</span>
+                    {". "}Current time: {istInfo.timeStr}
+                  </>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="mb-8 flex items-center gap-3 px-5 py-4 rounded-2xl border border-sky-800/60 bg-sky-950/40 text-sky-200 text-sm font-medium">
+              <CheckCircle className="h-5 w-5 flex-shrink-0 text-sky-400" />
+              <div>
+                <span className="font-bold text-white">Instant Plan Upgrades Available</span>
+                {" · "}Upgrades are open 24/7. Your quota updates immediately upon payment verification.
+              </div>
+            </div>
+          )}
 
           {/* Current Usage */}
           {user && (
@@ -389,7 +406,7 @@ export default function SubscriptionPage() {
 
           {/* Footer note */}
           <p className="text-center text-gray-600 text-xs mt-8">
-            Payments are accepted only between 10:00 AM – 11:00 AM IST daily. Paid plans do not renew automatically and remain active for 30 days after verified payment. An invoice email is attempted after verification, but delivery can fail.
+            {istInfo.enforceTimeGate ? "Payments are accepted only between 10:00 AM – 11:00 AM IST daily. " : ""}Paid plans do not renew automatically and remain active for 30 days after verified payment. An invoice email is attempted after verification, but delivery can fail.
           </p>
         </div>
       </div>

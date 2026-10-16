@@ -50,3 +50,15 @@ test("TW-005: replay with another payment is denied and partial application roll
   await assert.rejects(verifyPurchase(failed.input, owner, failed.deps), /database failure/);
   assert.equal(failed.sub().status, "created");
 });
+
+test("isPaymentWindowOpen allows 24/7 payments by default and respects ENFORCE_PAYMENT_TIME_GATE", async () => {
+  const { isPaymentWindowOpen } = await import("../index.js");
+  // Default: open 24/7
+  assert.equal(isPaymentWindowOpen({}), true);
+  assert.equal(isPaymentWindowOpen({ ENFORCE_PAYMENT_TIME_GATE: "false" }), true);
+
+  // When enforced, check returns boolean based on current IST time
+  const enforced = isPaymentWindowOpen({ ENFORCE_PAYMENT_TIME_GATE: "true" });
+  assert.equal(typeof enforced, "boolean");
+});
+
