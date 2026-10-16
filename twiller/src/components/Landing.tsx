@@ -67,8 +67,7 @@ export default function LandingPage({ onNavigate }: { onNavigate?: (page: string
               onClick={async () => {
                 setGoogleError("");
                 try {
-                  const complete = await googlesignin();
-                  if (!complete) setShowAuthModal(true);
+                  await googlesignin();
                 } catch (err: any) {
                   setGoogleError(err?.message || "Google sign-in failed");
                 }

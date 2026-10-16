@@ -331,8 +331,7 @@ app.post("/register", boundary("POST /register", securityDependencies), async (r
   const username=normalizeHandle(req.body.username);
   if(await User.findOne({username:new RegExp("^"+username+"$","i")}))fail(409,"USERNAME_UNAVAILABLE","Choose another username");
   // Allow Google/Firebase picture URL as avatar — token.picture is already verified by Firebase
-  const avatarUrl = req.body.avatar || token.picture || "";
-  if(avatarUrl && avatarUrl !== token.picture) fail(400,"INVALID_MEDIA","Use a verified avatar upload after registration");
+  const avatarUrl = token.picture || req.body.avatar || "";
   let user;
   try {
     user = await User.create({ firebaseUid: token.uid, email: token.email, username: normalizeHandle(req.body.username), displayName: req.body.displayName, avatar: avatarUrl });

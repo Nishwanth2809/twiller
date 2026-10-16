@@ -1,5 +1,5 @@
 "use client";
-import { browserPopupRedirectResolver, createUserWithEmailAndPassword, GoogleAuthProvider, getRedirectResult, onAuthStateChanged, sendEmailVerification, signInWithEmailAndPassword, signInWithRedirect, signOut } from "firebase/auth";
+import { browserPopupRedirectResolver, createUserWithEmailAndPassword, GoogleAuthProvider, getRedirectResult, onAuthStateChanged, sendEmailVerification, signInWithEmailAndPassword, signInWithPopup, signInWithRedirect, signOut } from "firebase/auth";
 import type { User as FirebaseUser } from "firebase/auth";
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import axios from "axios";
@@ -74,7 +74,8 @@ const redirectErrorMessage = (error: unknown) => {
   const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
   if (code === "auth/network-request-failed" || code === "redirect-timeout") return "Google sign-in could not connect. Please check your connection and try again.";
   if (code === "auth/operation-not-allowed") return "Google sign-in is not enabled for this Firebase project.";
-  if (code === "auth/cancelled-popup-request" || code === "auth/user-cancelled") return "Google sign-in was canceled. Please try again.";
+  if (code === "auth/unauthorized-domain") return "Domain not authorized in Firebase Console (Authentication > Settings > Authorized Domains).";
+  if (code === "auth/cancelled-popup-request" || code === "auth/user-cancelled" || code === "auth/popup-closed-by-user") return "Google sign-in was canceled. Please try again.";
   return "Google sign-in could not be completed. Please try again.";
 };
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -95,7 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     clear(); setAuthError(""); setIsLoading(true);
     return next;
   };
-  const current = (g: number, firebaseUser: FirebaseUser) => generation.current.current(g) && auth.currentUser?.uid === firebaseUser.uid;
+  const current = (g: number, firebaseUser: FirebaseUser) => generation.current.current(g) && (auth.currentUser ? auth.currentUser.uid === firebaseUser.uid : true);
   const load = async (firebaseUser: FirebaseUser, g: number) => {
     // Use the token directly from the known firebaseUser — avoids auth.currentUser race window.
     const token = await firebaseUser.getIdToken();
@@ -117,12 +118,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const code = axios.isAxiosError(error) ? error.response?.data?.code : undefined;
       const isGoogle = firebaseUser.providerData.some(p => p.providerId === "google.com");
       if (code === "PROFILE_REQUIRED" && isGoogle && firebaseUser.email) {
-        const prefix = firebaseUser.email.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 50).padEnd(3, "_");
-        await axiosInstance.post("/register",
-          { username: prefix, displayName: (firebaseUser.displayName || "User").slice(0, 50), avatar: firebaseUser.photoURL || "" },
-          { headers: authHeader }
-        );
-        result = await attempt(); // retry after registration
+        const basePrefix = firebaseUser.email.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 40).padEnd(3, "_");
+        let registered = false;
+        for (const candidate of [basePrefix, `${basePrefix}_${Math.floor(100 + Math.random() * 900)}`]) {
+          try {
+            await axiosInstance.post("/register",
+              { username: candidate, displayName: (firebaseUser.displayName || "User").slice(0, 50), avatar: firebaseUser.photoURL || "" },
+              { headers: authHeader }
+            );
+            registered = true;
+            break;
+          } catch (regErr: any) {
+            if (regErr?.response?.data?.code === "USERNAME_UNAVAILABLE") continue;
+            throw regErr;
+          }
+        }
+        if (registered) result = await attempt();
+        else throw error;
       } else {
         throw error;
       }
@@ -305,8 +317,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const googlesignin = async () => {
     if (localDemoEnabled) throw new Error("Google sign-in is unavailable in local demo mode.");
     if (operating.current !== null) return false;
-    try { await signInWithRedirect(auth, new GoogleAuthProvider(), browserPopupRedirectResolver); }
-    catch (error) { setAuthError(message(error)); }
+    setAuthError("");
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: "select_account" });
+    try {
+      // First attempt popup sign-in which returns credential directly in the active session
+      const credential = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+      if (credential?.user) {
+        const g = begin();
+        operating.current = g;
+        try {
+          return await load(credential.user, g);
+        } finally {
+          if (operating.current === g) operating.current = null;
+        }
+      }
+    } catch (popupError: any) {
+      const code = popupError?.code || "";
+      if (code === "auth/popup-blocked") {
+        try {
+          await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
+          return false;
+        } catch (redirectError) {
+          setAuthError(redirectErrorMessage(redirectError));
+          return false;
+        }
+      }
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+        return false;
+      }
+      setAuthError(redirectErrorMessage(popupError));
+      return false;
+    }
     return false;
   };
   const startDemoSession = async () => {
