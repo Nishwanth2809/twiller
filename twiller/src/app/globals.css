@@ -357,7 +357,7 @@ html [data-slot="tabs-trigger"] { min-height: 44px; }
 .twiller-demo { padding-top: 24px; }
 .twiller-topbar { position: sticky; top: 0; z-index: 30; min-height: var(--twiller-header-height); border-bottom: 1px solid var(--border); background: var(--card); }
 .twiller-demo .twiller-topbar { top: 24px; }
-.twiller-topbar-inner { max-width: 1320px; margin-inline: auto; padding: 12px 24px; display: grid; grid-template-columns: 184px minmax(120px, 1fr) auto auto auto; align-items: center; gap: 16px; }
+.twiller-topbar-inner { max-width: 1320px; margin-inline: auto; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
 .twiller-brand-link { display: flex; align-items: center; width: fit-content; min-height: 44px; border-radius: 10px; }
 .twiller-global-search { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 520px; min-width: 0; min-height: 44px; background: var(--elevated); border: 1px solid transparent; border-radius: 12px; padding-left: 14px; color: var(--muted-foreground); }
 .twiller-global-search:focus-within { outline: 2px solid var(--ring); outline-offset: 2px; }
@@ -435,15 +435,14 @@ html[data-theme="dark"] .twiller-post:hover { background-color: #152035 !importa
 .twiller-landing-brand p { color: var(--muted-foreground); font-size: 20px; margin-top: 20px; }
 @media (min-width: 768px) and (max-width: 1023px) {
   .twiller-rail { width: 64px; }
-  .twiller-topbar-inner { grid-template-columns: auto minmax(120px, 1fr) auto auto auto; gap: 12px; }
+  .twiller-topbar-inner { gap: 12px; }
   .twiller-nav-item { justify-content: center; padding-inline: 8px; }
   .twiller-rail-account button { justify-content: center; }
 }
 @media (max-width: 767px) {
-  .twiller-app { --twiller-header-height: 124px; }
-  .twiller-topbar-inner { padding: 10px 12px; gap: 8px 8px; grid-template-columns: minmax(0, 1fr) auto auto; }
+  .twiller-app { --twiller-header-height: 64px; }
+  .twiller-topbar-inner { padding: 10px 12px; gap: 8px; display: flex; justify-content: space-between; align-items: center; }
   .twiller-top-activity { display: none; }
-  .twiller-global-search { grid-row: 2; grid-column: 1 / -1; max-width: none; }
   .twiller-create { padding-inline: 12px; }
   .twiller-wordmark { font-size: 20px; }
   .twiller-workspace { padding: 12px 8px 0; gap: 0; }

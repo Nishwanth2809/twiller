@@ -351,29 +351,25 @@ test("Twiller folded T brand has one accessible product name and supports decora
   assert.equal(decorative.props.role, undefined);
 });
 
-test("Twiller top bar submits to search and preserves separate create/profile actions", () => {
-  const savedFormData = Object.getOwnPropertyDescriptor(globalThis, "FormData");
-  globalThis.FormData = class { constructor(form) { this.form = form; } get(name) { return this.form[name]; } };
-  const searches = []; const navigations = []; let creates = 0;
-  try {
-    const { default: TopBar } = compile("components/layout/TopBar.tsx", {
-      "react/jsx-runtime": jsx, "lucide-react": { SquarePen: "svg", Bell: "svg", Search: "svg" },
-      "../BrandLogo": "BrandLogo", "../ui/avatar": { Avatar: "div", AvatarImage: "img", AvatarFallback: "span" },
-      "@/context/AuthContext": { useAuth: () => ({ user: { username: "local", avatar: "http://127.0.0.1:5055/media/avatar" } }) },
-    });
-    const tree = TopBar({ onNavigate: page => navigations.push(page), onSearch: query => searches.push(query), onOpenComposer: () => creates++ });
-    const form = findElement(tree, node => node.type === "form");
-    assert.equal(form.props.role, "search");
-    form.props.onSubmit({ preventDefault() {}, currentTarget: { q: "  #conversation  " } });
-    assert.deepEqual(searches, ["#conversation"]); assert.equal(creates, 0);
-    findElement(tree, node => node.props?.["aria-label"] === "Create new post").props.onClick();
-    assert.equal(creates, 1);
-    findElement(tree, node => node.props?.["aria-label"] === "View your profile").props.onClick();
-    assert.deepEqual(navigations, ["profile"]);
-    findElement(tree, node => node.props?.["aria-label"] === "Open Activity").props.onClick();
-    assert.deepEqual(navigations, ["profile", "notifications"]);
-    assert.equal(findElement(tree, node => node.type === "img").props.src, "http://127.0.0.1:5055/media/avatar");
-  } finally { savedFormData ? Object.defineProperty(globalThis, "FormData", savedFormData) : delete globalThis.FormData; }
+test("Twiller top bar preserves separate brand, create, activity, and profile actions", () => {
+  const navigations = []; let creates = 0;
+  const { default: TopBar } = compile("components/layout/TopBar.tsx", {
+    "react/jsx-runtime": jsx, "lucide-react": { SquarePen: "svg", Bell: "svg" },
+    "../BrandLogo": "BrandLogo", "../ui/avatar": { Avatar: "div", AvatarImage: "img", AvatarFallback: "span" },
+    "@/context/AuthContext": { useAuth: () => ({ user: { username: "local", avatar: "http://127.0.0.1:5055/media/avatar" } }) },
+  });
+  const tree = TopBar({ onNavigate: page => navigations.push(page), onOpenComposer: () => creates++ });
+  const form = findElement(tree, node => node.type === "form");
+  assert.equal(form, undefined, "search form is removed from main nav bar");
+  findElement(tree, node => node.props?.["aria-label"] === "Twiller Home").props.onClick();
+  assert.deepEqual(navigations, ["home"]);
+  findElement(tree, node => node.props?.["aria-label"] === "Create new post").props.onClick();
+  assert.equal(creates, 1);
+  findElement(tree, node => node.props?.["aria-label"] === "View your profile").props.onClick();
+  assert.deepEqual(navigations, ["home", "profile"]);
+  findElement(tree, node => node.props?.["aria-label"] === "Open Activity").props.onClick();
+  assert.deepEqual(navigations, ["home", "profile", "notifications"]);
+  assert.equal(findElement(tree, node => node.type === "img").props.src, "http://127.0.0.1:5055/media/avatar");
 });
 
 test("Pulse renders only server hashtag activity, links to existing search, and has honest empty/error states", async () => {
