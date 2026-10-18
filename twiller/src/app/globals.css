@@ -361,7 +361,7 @@ html [data-slot="tabs-trigger"] { min-height: 44px; }
 .twiller-wordmark { font-size: 22px; letter-spacing: -.045em; font-weight: 750; line-height: 1.2; }
 .twiller-app { --twiller-header-height: 68px; background: var(--background); color: var(--foreground); min-height: 100dvh; }
 .twiller-demo { padding-top: 24px; }
-.twiller-topbar { position: sticky; top: 0; z-index: 30; min-height: var(--twiller-header-height); border-bottom: 1px solid var(--border); background: var(--card); }
+.twiller-topbar { position: sticky; top: 0; z-index: 30; min-height: var(--twiller-header-height); border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--card) 85%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
 .twiller-demo .twiller-topbar { top: 24px; }
 .twiller-topbar-inner { max-width: 1320px; margin-inline: auto; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
 .twiller-brand-link { display: flex; align-items: center; width: fit-content; min-height: 44px; border-radius: 10px; }
@@ -440,7 +440,7 @@ html .twiller-feed [data-slot="tabs-trigger"][data-state="active"]::after { cont
 .twiller-post:hover {
   background-color: var(--color-surface-hover) !important;
 }
-.twiller-mobile-nav { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+.twiller-mobile-nav { bottom: max(14px, env(safe-area-inset-bottom)); }
 .twiller-landing { background: var(--background) !important; gap: 32px; padding: 32px; }
 .twiller-landing-brand { max-width: 360px; padding: 32px; }
 .twiller-landing-brand .twiller-wordmark { font-size: 44px; }
@@ -452,18 +452,18 @@ html .twiller-feed [data-slot="tabs-trigger"][data-state="active"]::after { cont
   .twiller-rail-account button { justify-content: center; }
 }
 @media (max-width: 767px) {
-  .twiller-app { --twiller-header-height: 64px; }
-  .twiller-topbar-inner { padding: 10px 12px; gap: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .twiller-app { --twiller-header-height: 56px; }
+  .twiller-topbar-inner { padding: 8px 14px; gap: 8px; display: flex; justify-content: space-between; align-items: center; }
   .twiller-top-activity { display: none; }
-  .twiller-create { padding-inline: 12px; }
+  .twiller-create { min-width: 38px; min-height: 38px; padding: 0 10px; border-radius: 9999px; }
   .twiller-wordmark { font-size: 20px; }
-  .twiller-workspace { padding: 12px 8px 0; gap: 0; }
+  .twiller-workspace { padding: 8px 8px 0; gap: 0; }
   .twiller-center { border-radius: 14px; width: 100%; }
-  .twiller-post { margin: 10px 8px; }
+  .twiller-post { margin: 8px 4px; }
   .twiller-post > div { padding: 12px; }
-  .twiller-composer { margin: 10px 8px; }
+  .twiller-composer { margin: 8px 4px; }
   .twiller-feed .twiller-composer { margin: 0 0 10px; }
-  .twiller-feed .twiller-post { margin: 10px 0; }
+  .twiller-feed .twiller-post { margin: 8px 0; }
   .twiller-landing { padding: 24px 16px; }
   .twiller-landing > div:last-child { padding-inline: 8px; }
 }

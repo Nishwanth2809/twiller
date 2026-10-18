@@ -17,10 +17,10 @@ export default function TopBar({ onNavigate, onSearch, onOpenComposer }: {
         <button type="button" aria-label="Twiller Home" className="twiller-brand-link" onClick={() => onNavigate("home")}>
           <BrandLogo size="md" wordmark decorative />
         </button>
-        <div className="twiller-topbar-actions flex items-center gap-3">
+        <div className="twiller-topbar-actions flex items-center gap-2 sm:gap-3">
           <button type="button" aria-label="Create new post" className="twiller-create" onClick={onOpenComposer}>
             <SquarePen aria-hidden="true" className="h-4 w-4" />
-            <span>Create</span>
+            <span className="hidden sm:inline">Create</span>
           </button>
           <button type="button" aria-label="Open Activity" className="twiller-top-activity" onClick={() => onNavigate("notifications")}>
             <Bell aria-hidden="true" className="h-5 w-5" />

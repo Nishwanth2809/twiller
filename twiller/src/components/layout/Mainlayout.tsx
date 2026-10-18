@@ -203,11 +203,14 @@ const Mainlayout = ({ children }: { children: React.ReactNode }) => {
       </div>
       </div>
 
-      {/* Mobile bottom navigation */}
-      <nav aria-label="Primary navigation" className="twiller-mobile-nav fixed bottom-0 left-0 right-0 bg-surface/90 backdrop-blur-md border-t border-border flex items-center justify-around py-2 z-40 md:hidden safe-area-pb">
+      {/* Mobile bottom navigation — floating rounded dock */}
+      <nav
+        aria-label="Primary navigation"
+        className="twiller-mobile-nav fixed inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[440px] bg-surface/90 backdrop-blur-xl border border-border/80 rounded-full shadow-2xl shadow-black/10 flex items-center justify-around py-1.5 px-2 z-40 md:hidden"
+      >
         <button
           onClick={() => navigate("home")}
-          className={`relative p-3 rounded-full transition-colors flex flex-col items-center min-h-[44px] min-w-[44px] justify-center ${currentPage === "home" ? "text-primary font-bold" : "text-text-muted hover:text-text"}`}
+          className={`relative p-2.5 rounded-full transition-all flex flex-col items-center min-h-[44px] min-w-[44px] justify-center ${currentPage === "home" ? "text-primary font-bold bg-primary-soft/40" : "text-text-muted hover:text-text hover:bg-surface-hover/50"}`}
           aria-label="Home"
           aria-current={currentPage === "home" ? "page" : undefined}
         >
@@ -218,7 +221,7 @@ const Mainlayout = ({ children }: { children: React.ReactNode }) => {
         </button>
         <button
           onClick={() => navigate("explore")}
-          className={`relative p-3 rounded-full transition-colors flex flex-col items-center min-h-[44px] min-w-[44px] justify-center ${(currentPage === "explore" || currentPage === "search") ? "text-primary font-bold" : "text-text-muted hover:text-text"}`}
+          className={`relative p-2.5 rounded-full transition-all flex flex-col items-center min-h-[44px] min-w-[44px] justify-center ${(currentPage === "explore" || currentPage === "search") ? "text-primary font-bold bg-primary-soft/40" : "text-text-muted hover:text-text hover:bg-surface-hover/50"}`}
           aria-label="Discover"
           aria-current={(currentPage === "explore" || currentPage === "search") ? "page" : undefined}
         >
@@ -229,16 +232,16 @@ const Mainlayout = ({ children }: { children: React.ReactNode }) => {
         </button>
         <button
           onClick={() => setShowComposer(true)}
-          className="p-3 bg-primary hover:bg-primary-hover active:scale-95 rounded-full text-white transition-all shadow-md shadow-primary/30 min-h-[44px] min-w-[44px] flex items-center justify-center"
+          className="p-2.5 bg-primary hover:bg-primary-hover active:scale-95 rounded-full text-white transition-all shadow-md shadow-primary/30 min-h-[42px] min-w-[42px] flex items-center justify-center"
           aria-label="Create new post"
         >
-          <svg className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
         </button>
         <button
           onClick={() => navigate("notifications")}
-          className={`relative p-3 rounded-full transition-colors flex flex-col items-center min-h-[44px] min-w-[44px] justify-center ${currentPage === "notifications" ? "text-primary font-bold" : "text-text-muted hover:text-text"}`}
+          className={`relative p-2.5 rounded-full transition-all flex flex-col items-center min-h-[44px] min-w-[44px] justify-center ${currentPage === "notifications" ? "text-primary font-bold bg-primary-soft/40" : "text-text-muted hover:text-text hover:bg-surface-hover/50"}`}
           aria-label="Activity"
           aria-current={currentPage === "notifications" ? "page" : undefined}
         >
@@ -246,13 +249,13 @@ const Mainlayout = ({ children }: { children: React.ReactNode }) => {
             <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
           </svg>
           {unreadCount > 0 && (
-            <span className="absolute top-2 right-2 size-2 rounded-full bg-primary ring-2 ring-background" />
+            <span className="absolute top-2 right-2 size-2 rounded-full bg-primary ring-2 ring-surface" />
           )}
           {currentPage === "notifications" && <span className="absolute bottom-1 size-1 rounded-full bg-primary" />}
         </button>
         <button
           onClick={() => navigate("profile")}
-          className={`relative p-3 rounded-full transition-colors flex flex-col items-center min-h-[44px] min-w-[44px] justify-center ${currentPage === "profile" ? "text-primary font-bold" : "text-text-muted hover:text-text"}`}
+          className={`relative p-2.5 rounded-full transition-all flex flex-col items-center min-h-[44px] min-w-[44px] justify-center ${currentPage === "profile" ? "text-primary font-bold bg-primary-soft/40" : "text-text-muted hover:text-text hover:bg-surface-hover/50"}`}
           aria-label="Profile"
           aria-current={currentPage === "profile" ? "page" : undefined}
         >

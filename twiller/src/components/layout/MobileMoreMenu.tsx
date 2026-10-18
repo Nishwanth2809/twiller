@@ -26,8 +26,20 @@ export default function MobileMoreMenu({ currentPage, onNavigate }: { currentPag
 
   const choose = (page: string) => { setOpen(false); onNavigate(page); };
   return <>
-    <button ref={triggerRef} type="button" aria-label="More navigation" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)} className={`flex min-w-0 flex-1 flex-col items-center gap-1 py-1 text-xs ${["messages", "bookmarks", "subscription", "settings", "admin"].includes(currentPage) ? "text-primary" : "text-text-muted"}`}>
-      <MoreHorizontal aria-hidden="true" className="h-6 w-6" /><span>More</span>
+    <button
+      ref={triggerRef}
+      type="button"
+      aria-label="More navigation"
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      onClick={() => setOpen(true)}
+      className={`relative p-2.5 rounded-full transition-colors flex flex-col items-center min-h-[44px] min-w-[44px] justify-center ${["messages", "bookmarks", "subscription", "settings", "admin"].includes(currentPage) ? "text-primary font-bold" : "text-text-muted hover:text-text"}`}
+    >
+      <MoreHorizontal aria-hidden="true" className="h-6 w-6" />
+      <span className="sr-only">More</span>
+      {["messages", "bookmarks", "subscription", "settings", "admin"].includes(currentPage) && (
+        <span className="absolute bottom-1 size-1 rounded-full bg-primary" />
+      )}
     </button>
     <AccessibleDialog id="mobile-more-dialog" open={open} onClose={() => setOpen(false)} labelledBy="mobile-more-title" closeOnBackdrop>
       <div className="fixed inset-x-0 bottom-0 max-h-[80dvh] overflow-y-auto rounded-t-2xl border border-border bg-surface px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 text-text shadow-2xl">
