@@ -23,5 +23,5 @@ export default function ScrollProgress() {
     window.addEventListener("resize", update);
     return () => { cancelAnimationFrame(frame); window.removeEventListener("scroll", update); window.removeEventListener("resize", update); };
   }, []);
-  return <div ref={barRef} role="progressbar" aria-label="Reading progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={0} className="fixed inset-x-0 top-0 z-[90] h-1 origin-left scale-x-0 bg-blue-500 motion-reduce:transition-none" />;
+  return <div ref={barRef} role="progressbar" aria-label="Reading progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={0} className="fixed inset-x-0 top-0 z-[90] h-1 origin-left scale-x-0 bg-primary motion-reduce:transition-none" />;
 }

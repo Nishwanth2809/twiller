@@ -9,5 +9,5 @@ export default function CollectionMore<T>({endpoint,cursor,onLoaded}:{endpoint:s
     try {const response=await axiosInstance.get<T[]>(endpoint,{params:{cursor:next}});onLoaded(response.data);setNext(response.headers["x-next-cursor"]||"");}
     catch {setError("Could not load more. Please retry.");}finally{setBusy(false);}
   };
-  return <div className="p-4 text-center"><button type="button" className="text-blue-400 disabled:opacity-50" disabled={busy} onClick={load}>{busy?"Loading…":"Load more"}</button>{error&&<p role="alert" className="text-red-400">{error}</p>}</div>;
+  return <div className="p-4 text-center"><button type="button" className="text-primary disabled:opacity-50" disabled={busy} onClick={load}>{busy?"Loading…":"Load more"}</button>{error&&<p role="alert" className="text-error">{error}</p>}</div>;
 }

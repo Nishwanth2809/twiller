@@ -179,17 +179,17 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 py-6 text-white">
+    <div className="w-full max-w-4xl mx-auto px-4 py-6 text-text">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-gray-800">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-border">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-white">Admin Moderation Console</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-text">Admin Moderation Console</h1>
             <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-rose-950/80 border border-rose-500/40 text-rose-300">
               <Shield className="w-3.5 h-3.5" /> Staff
             </span>
           </div>
-          <p className="text-sm text-gray-400 mt-1">
+          <p className="text-sm text-text-muted mt-1">
             Manage platform members and moderate public community content safely.
           </p>
         </div>
@@ -198,18 +198,18 @@ export default function AdminPage() {
           variant="outline"
           size="sm"
           onClick={() => fetchUsers(true)}
-          className="border-gray-800 text-gray-300 hover:text-white hover:bg-gray-900 gap-1.5 self-start"
+          className="border-border text-text hover:text-text hover:bg-surface-hover gap-1.5 self-start"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> Refresh
         </Button>
       </div>
 
       {/* Privacy Notice Banner */}
-      <div className="my-5 p-4 rounded-xl bg-gradient-to-r from-blue-950/40 to-indigo-950/30 border border-blue-500/20 text-xs sm:text-sm text-blue-200/90 flex items-start gap-3">
-        <Lock className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+      <div className="my-5 p-4 rounded-xl bg-primary-soft/50 border border-primary/20 text-xs sm:text-sm text-primary flex items-start gap-3">
+        <Lock className="w-5 h-5 text-primary shrink-0 mt-0.5" />
         <div>
-          <p className="font-semibold text-blue-200">Zero-DM Privacy Guarantee</p>
-          <p className="text-blue-300/80 mt-0.5">
+          <p className="font-semibold text-primary">Zero-DM Privacy Guarantee</p>
+          <p className="text-text-muted mt-0.5">
             Admin endpoints operate exclusively on public records (posts, profiles, follower relations). Private direct messages (DMs), OTPs, and password credentials are isolated by strict security boundaries and cannot be viewed or modified by administrators.
           </p>
         </div>
@@ -232,51 +232,51 @@ export default function AdminPage() {
       {/* Search Bar */}
       <form onSubmit={handleSearchSubmit} className="flex gap-2 my-4">
         <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted" />
           <Input
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search by username or display name..."
-            className="pl-10 bg-gray-950 border-gray-800 text-white placeholder-gray-500 focus-visible:ring-blue-500"
+            className="pl-10 bg-surface border-border text-text placeholder-text-muted focus-visible:ring-primary"
           />
         </div>
-        <Button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white">
+        <Button type="submit" className="bg-primary hover:bg-primary-hover text-on-primary">
           Search
         </Button>
       </form>
 
       {/* Users List */}
-      <div className="mt-4 rounded-xl border border-gray-800 bg-black/60 overflow-hidden shadow-xl">
+      <div className="mt-4 rounded-xl border border-border bg-surface overflow-hidden shadow-xl">
         {loading && users.length === 0 ? (
-          <div className="py-12 text-center text-gray-500">
-            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-gray-400" />
+          <div className="py-12 text-center text-text-muted">
+            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-text-muted" />
             Loading platform accounts...
           </div>
         ) : users.length === 0 ? (
-          <div className="py-12 text-center text-gray-500">
+          <div className="py-12 text-center text-text-muted">
             No accounts found matching your search.
           </div>
         ) : (
-          <div className="divide-y divide-gray-800/80">
+          <div className="divide-y divide-border">
             {users.map(u => {
               const isSelf = u._id === currentAdmin?._id;
               const isOtherAdmin = u.role === "admin" && !isSelf;
 
               return (
-                <div key={u._id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-gray-900/30 transition-colors">
+                <div key={u._id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-surface-hover transition-colors">
                   <div className="flex items-center gap-3 min-w-0">
-                    <Avatar className="w-10 h-10 border border-gray-800 shrink-0">
+                    <Avatar className="w-10 h-10 border border-border shrink-0">
                       <AvatarImage src={u.avatar} />
-                      <AvatarFallback className="bg-gray-800 text-white font-medium">
+                      <AvatarFallback className="bg-surface-hover text-text font-medium">
                         {u.displayName?.[0] || u.username?.[0] || "U"}
                       </AvatarFallback>
                     </Avatar>
 
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-white truncate">{u.displayName || u.username}</span>
-                        <span className="text-gray-400 text-sm truncate">@{u.username}</span>
+                        <span className="font-semibold text-text truncate">{u.displayName || u.username}</span>
+                        <span className="text-text-muted text-sm truncate">@{u.username}</span>
                         {u.role === "admin" && (
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-950/80 border border-purple-500/40 text-purple-300">
                             Admin
@@ -284,7 +284,7 @@ export default function AdminPage() {
                         )}
                         {getStatusBadge(u.accountStatus)}
                       </div>
-                      <p className="text-xs text-gray-500 mt-0.5">
+                      <p className="text-xs text-text-muted mt-0.5">
                         Joined {new Date(u.joinedDate).toLocaleDateString()}
                       </p>
                     </div>
@@ -297,7 +297,7 @@ export default function AdminPage() {
                       size="sm"
                       onClick={() => openUserDetails(u._id)}
                       title="Inspect Public Overview"
-                      className="text-gray-400 hover:text-white hover:bg-gray-800 p-2 h-9 w-9"
+                      className="text-text-muted hover:text-text hover:bg-surface-hover p-2 h-9 w-9"
                     >
                       <Eye className="w-4 h-4" />
                     </Button>
@@ -337,7 +337,7 @@ export default function AdminPage() {
                     )}
 
                     {isSelf && (
-                      <span className="text-xs text-gray-500 italic pr-2">Your Account</span>
+                      <span className="text-xs text-text-muted italic pr-2">Your Account</span>
                     )}
                     {isOtherAdmin && (
                       <span className="text-xs text-purple-400/80 italic pr-2">Protected Admin</span>
@@ -350,13 +350,13 @@ export default function AdminPage() {
         )}
 
         {hasMore && (
-          <div className="p-4 border-t border-gray-800 text-center">
+          <div className="p-4 border-t border-border text-center">
             <Button
               variant="outline"
               size="sm"
               onClick={() => fetchUsers(false)}
               disabled={loading}
-              className="border-gray-800 text-gray-300 hover:text-white hover:bg-gray-900"
+              className="border-border text-text hover:text-text hover:bg-surface-hover"
             >
               {loading ? "Loading..." : "Load More Accounts"}
             </Button>
@@ -371,14 +371,14 @@ export default function AdminPage() {
         labelledBy="user-detail-dialog-title"
         closeOnBackdrop
       >
-        <div className="mt-8 w-full max-w-md rounded-2xl border border-gray-800 bg-black text-white p-6 shadow-2xl">
-          <div className="flex items-center justify-between pb-3 border-b border-gray-800">
+        <div className="mt-8 w-full max-w-md rounded-2xl border border-border bg-surface text-text p-6 shadow-2xl">
+          <div className="flex items-center justify-between pb-3 border-b border-border">
             <h2 id="user-detail-dialog-title" className="text-lg font-bold flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-blue-400" /> Account Inspection
+              <UserCheck className="w-5 h-5 text-primary" /> Account Inspection
             </h2>
             <button
               onClick={() => setSelectedUserDetail(null)}
-              className="text-gray-400 hover:text-white text-sm p-1 rounded-full"
+              className="text-text-muted hover:text-text text-sm p-1 rounded-full"
             >
               ✕
             </button>
@@ -387,44 +387,44 @@ export default function AdminPage() {
           {selectedUserDetail && (
             <div className="mt-4 space-y-4">
               <div className="flex items-center gap-3">
-                <Avatar className="w-12 h-12 border border-gray-800">
+                <Avatar className="w-12 h-12 border border-border">
                   <AvatarImage src={selectedUserDetail.user.avatar} />
-                  <AvatarFallback className="bg-gray-800 text-white text-lg">
+                  <AvatarFallback className="bg-surface-hover text-text text-lg">
                     {selectedUserDetail.user.displayName?.[0] || "?"}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="font-bold text-white text-base">{selectedUserDetail.user.displayName}</p>
-                  <p className="text-gray-400 text-sm">@{selectedUserDetail.user.username}</p>
+                  <p className="font-bold text-text text-base">{selectedUserDetail.user.displayName}</p>
+                  <p className="text-text-muted text-sm">@{selectedUserDetail.user.username}</p>
                 </div>
               </div>
 
               {selectedUserDetail.user.bio && (
-                <p className="text-sm text-gray-300 bg-gray-950 p-2.5 rounded-lg border border-gray-800">
+                <p className="text-sm text-text bg-surface-hover/50 p-2.5 rounded-lg border border-border">
                   {selectedUserDetail.user.bio}
                 </p>
               )}
 
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="p-2.5 rounded-lg bg-gray-950 border border-gray-800">
-                  <p className="text-gray-500">Account Role</p>
-                  <p className="font-semibold text-white mt-0.5 capitalize">{selectedUserDetail.user.role}</p>
+                <div className="p-2.5 rounded-lg bg-surface-hover/50 border border-border">
+                  <p className="text-text-muted">Account Role</p>
+                  <p className="font-semibold text-text mt-0.5 capitalize">{selectedUserDetail.user.role}</p>
                 </div>
-                <div className="p-2.5 rounded-lg bg-gray-950 border border-gray-800">
-                  <p className="text-gray-500">Status</p>
-                  <p className="font-semibold text-white mt-0.5 capitalize">{selectedUserDetail.user.accountStatus}</p>
+                <div className="p-2.5 rounded-lg bg-surface-hover/50 border border-border">
+                  <p className="text-text-muted">Status</p>
+                  <p className="font-semibold text-text mt-0.5 capitalize">{selectedUserDetail.user.accountStatus}</p>
                 </div>
-                <div className="p-2.5 rounded-lg bg-gray-950 border border-gray-800">
-                  <p className="text-gray-500">Root Posts</p>
-                  <p className="font-semibold text-white mt-0.5">{selectedUserDetail.stats.rootPosts}</p>
+                <div className="p-2.5 rounded-lg bg-surface-hover/50 border border-border">
+                  <p className="text-text-muted">Root Posts</p>
+                  <p className="font-semibold text-text mt-0.5">{selectedUserDetail.stats.rootPosts}</p>
                 </div>
-                <div className="p-2.5 rounded-lg bg-gray-950 border border-gray-800">
-                  <p className="text-gray-500">Replies</p>
-                  <p className="font-semibold text-white mt-0.5">{selectedUserDetail.stats.replies}</p>
+                <div className="p-2.5 rounded-lg bg-surface-hover/50 border border-border">
+                  <p className="text-text-muted">Replies</p>
+                  <p className="font-semibold text-text mt-0.5">{selectedUserDetail.stats.replies}</p>
                 </div>
               </div>
 
-              <div className="text-[11px] text-gray-500 border-t border-gray-800/80 pt-3">
+              <div className="text-[11px] text-text-muted border-t border-border pt-3">
                 Security boundary verified: Private messaging (DMs) are intentionally segregated and completely excluded from admin inspection.
               </div>
             </div>
@@ -439,24 +439,24 @@ export default function AdminPage() {
         labelledBy="status-dialog-title"
         closeOnBackdrop
       >
-        <div className="mt-8 w-full max-w-md rounded-2xl border border-gray-800 bg-black text-white p-6 shadow-2xl">
+        <div className="mt-8 w-full max-w-md rounded-2xl border border-border bg-surface text-text p-6 shadow-2xl">
           <h2 id="status-dialog-title" className="text-lg font-bold">
             {statusTarget?.newStatus === "active" ? "Resume Account" : "Freeze Account"}
           </h2>
-          <p className="text-sm text-gray-400 mt-2">
+          <p className="text-sm text-text-muted mt-2">
             {statusTarget?.newStatus === "active"
               ? `Restore full account mutation privileges for @${statusTarget?.user.username}.`
               : `Freeze account for @${statusTarget?.user.username}. The user will be signed out and prevented from publishing posts, replies, likes, or updates.`}
           </p>
 
           <div className="mt-4">
-            <label className="text-xs text-gray-400 block mb-1">Moderation Reason (Optional)</label>
+            <label className="text-xs text-text-muted block mb-1">Moderation Reason (Optional)</label>
             <Input
               type="text"
               placeholder="e.g. Terms of Service investigation"
               value={statusReason}
               onChange={e => setStatusReason(e.target.value)}
-              className="bg-gray-950 border-gray-800 text-white placeholder-gray-500"
+              className="bg-surface-hover/50 border-border text-text placeholder-text-muted"
             />
           </div>
 
@@ -464,7 +464,7 @@ export default function AdminPage() {
             <Button
               variant="ghost"
               onClick={() => setStatusTarget(null)}
-              className="text-gray-400 hover:text-white"
+              className="text-text-muted hover:text-text"
             >
               Cancel
             </Button>
@@ -486,17 +486,17 @@ export default function AdminPage() {
         labelledBy="delete-dialog-title"
         closeOnBackdrop
       >
-        <div className="mt-8 w-full max-w-md rounded-2xl border border-rose-900/50 bg-black text-white p-6 shadow-2xl">
+        <div className="mt-8 w-full max-w-md rounded-2xl border border-rose-900/50 bg-surface text-text p-6 shadow-2xl">
           <div className="flex items-center gap-3 text-rose-400 mb-2">
             <AlertTriangle className="w-6 h-6" />
             <h2 id="delete-dialog-title" className="text-lg font-bold">
               Permanently Delete Account
             </h2>
           </div>
-          <p className="text-sm text-gray-300 mt-1">
-            Are you sure you want to delete <span className="font-bold text-white">@{deleteTarget?.username}</span>?
+          <p className="text-sm text-text mt-1">
+            Are you sure you want to delete <span className="font-bold text-text">@{deleteTarget?.username}</span>?
           </p>
-          <ul className="text-xs text-gray-400 list-disc list-inside mt-3 space-y-1">
+          <ul className="text-xs text-text-muted list-disc list-inside mt-3 space-y-1">
             <li>Session and authentication tokens will be immediately revoked.</li>
             <li>Stand-alone posts will be permanently purged.</li>
             <li>Posts with replies will be tombstoned to preserve conversation trees.</li>
@@ -504,13 +504,13 @@ export default function AdminPage() {
           </ul>
 
           <div className="mt-4">
-            <label className="text-xs text-gray-400 block mb-1">Deletion Reason (Required for audit)</label>
+            <label className="text-xs text-text-muted block mb-1">Deletion Reason (Required for audit)</label>
             <Input
               type="text"
               placeholder="e.g. Repeated harassment or platform abuse"
               value={deleteReason}
               onChange={e => setDeleteReason(e.target.value)}
-              className="bg-gray-950 border-gray-800 text-white placeholder-gray-500"
+              className="bg-surface-hover/50 border-border text-text placeholder-text-muted"
             />
           </div>
 
@@ -518,7 +518,7 @@ export default function AdminPage() {
             <Button
               variant="ghost"
               onClick={() => setDeleteTarget(null)}
-              className="text-gray-400 hover:text-white"
+              className="text-text-muted hover:text-text"
             >
               Cancel
             </Button>

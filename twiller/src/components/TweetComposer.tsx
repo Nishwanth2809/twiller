@@ -148,7 +148,7 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
   };
 
   return (
-    <Card className="twiller-composer bg-black border-gray-800 border-x-0 border-t-0 rounded-none">
+    <Card className="twiller-composer bg-surface border-border border-x-0 border-t-0 rounded-none">
       <CardContent className="p-4">
         {/* Tweet limit indicator */}
         <div className="flex items-center justify-between mb-3 px-1">
@@ -156,18 +156,18 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
             <span
               className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${
                 plan === "gold"
-                  ? "bg-yellow-500/20 text-yellow-400"
+                  ? "bg-warning/20 text-warning"
                   : plan === "silver"
-                  ? "bg-slate-500/20 text-slate-300"
+                  ? "bg-primary-soft text-primary"
                   : plan === "bronze"
-                  ? "bg-amber-700/20 text-amber-400"
-                  : "bg-gray-800 text-gray-400"
+                  ? "bg-warning/20 text-warning"
+                  : "bg-surface-hover text-text-muted"
               }`}
             >
               <Crown className="h-3 w-3 inline mr-1" />
               {plan.charAt(0).toUpperCase() + plan.slice(1)}
             </span>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-text-muted">
               {planLimit === Infinity
                 ? "Unlimited tweets"
                 : `${tweetCount}/${planLimit} posts used`}
@@ -176,7 +176,7 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
           {isAtLimit && (
             <button
               onClick={() => onNavigate?.("subscription")}
-              className="text-xs text-blue-400 hover:underline flex items-center gap-1"
+              className="text-xs text-primary hover:underline flex items-center gap-1"
             >
               <Crown className="h-3 w-3" /> Upgrade
             </button>
@@ -185,11 +185,11 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
 
         {/* Limit reached gate */}
         {isAtLimit ? (
-          <div className="flex flex-col items-center py-6 px-4 text-center space-y-3 bg-gray-950 rounded-2xl border border-gray-800">
-            <Lock className="h-8 w-8 text-gray-500" />
+          <div className="flex flex-col items-center py-6 px-4 text-center space-y-3 bg-surface-hover rounded-2xl border border-border">
+            <Lock className="h-8 w-8 text-text-muted" />
             <div>
-              <p className="text-white font-semibold">Post limit reached</p>
-              <p className="text-gray-400 text-sm mt-1">
+              <p className="text-text font-semibold">Post limit reached</p>
+              <p className="text-text-muted text-sm mt-1">
                 {plan === "free"
                   ? "Free plan allows 1 post or reply per calendar month."
                   : plan === "bronze"
@@ -200,7 +200,7 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
             </div>
             <Button
               onClick={() => onNavigate?.("subscription")}
-              className="bg-blue-500 hover:bg-blue-600 text-white rounded-full px-6 font-semibold"
+              className="bg-primary hover:bg-primary-hover text-on-primary rounded-full px-6 font-semibold"
             >
               <Crown className="h-4 w-4 mr-2" /> Upgrade Plan
             </Button>
@@ -237,15 +237,15 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
                 <CircleSelector selected={selectedCircle} onChange={setSelectedCircle} disabled={isLoading} />
 
                 {limitError && (
-                  <p role="alert" className="text-red-400 text-sm mt-1 flex items-center gap-1">
+                  <p role="alert" className="text-error text-sm mt-1 flex items-center gap-1">
                     <Lock className="h-3 w-3" /> {limitError}
                   </p>
                 )}
 
                 {audioFile && (
-                  <div className="mt-2 p-2 bg-gray-900 rounded-xl flex items-center justify-between border border-gray-800">
+                  <div className="mt-2 p-2 bg-surface-hover rounded-xl flex items-center justify-between border border-border">
                     <audio controls src={audioPreview} className="h-10 w-full max-w-xs" />
-                    <button type="button" onClick={() => { URL.revokeObjectURL(audioPreview); setAudioFile(null); setAudioUploadUrl(""); setAudioPreview(""); setAudioOtp(""); }} className="text-red-400 text-sm font-bold ml-4 hover:underline">Remove</button>
+                    <button type="button" onClick={() => { URL.revokeObjectURL(audioPreview); setAudioFile(null); setAudioUploadUrl(""); setAudioPreview(""); setAudioOtp(""); }} className="text-error text-sm font-bold ml-4 hover:underline">Remove</button>
                   </div>
                 )}
 
@@ -330,9 +330,9 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
                                 }`}
                                 className={
                                   isOverLimit
-                                    ? "text-rose-500"
+                                    ? "text-error"
                                     : isNearLimit
-                                    ? "text-amber-500"
+                                    ? "text-warning"
                                     : "text-primary"
                                 }
                               />
@@ -341,7 +341,7 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
                           {isNearLimit && (
                             <span
                               className={`text-sm font-semibold ${
-                                isOverLimit ? "text-rose-500" : "text-amber-500"
+                                isOverLimit ? "text-error" : "text-warning"
                               }`}
                             >
                               {maxLength - characterCount}
@@ -354,7 +354,7 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
                         type="submit"
                         disabled={!content.trim() || isOverLimit || isLoading}
                         loading={isLoading}
-                        className="bg-primary hover:bg-primary-hover active:scale-95 text-white font-semibold rounded-full px-6 transition-all shadow-sm"
+                        className="bg-primary hover:bg-primary-hover active:scale-95 text-on-primary font-semibold rounded-full px-6 transition-all shadow-sm"
                       >
                         Post
                       </Button>
@@ -368,9 +368,9 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
       </CardContent>
 
       <AccessibleDialog open={showAudioOtpModal} onClose={cancelAudioOtp} labelledBy="audio-otp-title" describedBy="audio-otp-help">
-          <div className="w-full max-w-sm rounded-2xl border border-gray-800 bg-gray-900 p-6 text-white shadow-2xl">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 text-text shadow-2xl">
             <h2 id="audio-otp-title" className="mb-2 text-lg font-bold">Verify Audio Upload</h2>
-            <p id="audio-otp-help" className="mb-4 text-sm text-gray-400">An OTP was sent to your email to authorize this audio upload.</p>
+            <p id="audio-otp-help" className="mb-4 text-sm text-text-muted">An OTP was sent to your email to authorize this audio upload.</p>
             <label htmlFor="audio-upload-otp" className="sr-only">Enter the six-digit audio upload code</label>
             <input
               id="audio-upload-otp"
@@ -384,11 +384,11 @@ const TweetComposer = ({ onTweetPosted, onNavigate }: any) => {
               placeholder="Enter 6-digit OTP" 
               value={otpInput} 
               onChange={e => setOtpInput(e.target.value)} 
-              className="w-full bg-gray-950 border border-gray-700 text-white p-3 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:outline-none" 
+              className="w-full bg-surface-hover border border-border text-text p-3 rounded-lg mb-4 focus:ring-2 focus:ring-primary focus:outline-none placeholder-text-muted" 
             />
             <div className="flex gap-3">
-              <Button type="button" onClick={cancelAudioOtp} className="min-h-11 flex-1 bg-gray-800 hover:bg-gray-700 text-white">Cancel</Button>
-              <Button type="button" onClick={() => { setAudioOtp(otpInput); setShowAudioOtpModal(false); }} className="min-h-11 flex-1 bg-blue-600 hover:bg-blue-500 text-white">Confirm</Button>
+              <Button type="button" onClick={cancelAudioOtp} className="min-h-11 flex-1 border border-border bg-surface-hover hover:bg-surface text-text">Cancel</Button>
+              <Button type="button" onClick={() => { setAudioOtp(otpInput); setShowAudioOtpModal(false); }} className="min-h-11 flex-1 bg-primary hover:bg-primary-hover text-on-primary">Confirm</Button>
             </div>
           </div>
       </AccessibleDialog>

@@ -226,13 +226,13 @@ export default function FeedRulesPanel({
     >
       <div
         ref={panelRef}
-        className="w-full max-w-md bg-gray-950 border border-gray-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="w-full max-w-md bg-surface border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800/80">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
-            <SlidersHorizontal className="h-5 w-5 text-blue-400" />
-            <h2 id="feed-rules-title" className="text-lg font-bold text-white tracking-tight">
+            <SlidersHorizontal className="h-5 w-5 text-primary" />
+            <h2 id="feed-rules-title" className="text-lg font-bold text-text tracking-tight">
               Feed Rules
             </h2>
           </div>
@@ -240,7 +240,7 @@ export default function FeedRulesPanel({
             type="button"
             onClick={onClose}
             aria-label="Close feed rules"
-            className="p-1 rounded-full text-gray-400 hover:text-white hover:bg-gray-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="p-1 rounded-full text-text-muted hover:text-text hover:bg-surface-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <X className="h-5 w-5" />
           </button>
@@ -249,7 +249,7 @@ export default function FeedRulesPanel({
         {/* Body */}
         <div className="p-5 overflow-y-auto space-y-4 flex-1">
           {error && (
-            <div className="p-3 bg-red-950/50 border border-red-800 text-red-200 text-sm rounded-lg flex items-center gap-2">
+            <div className="p-3 bg-error/10 border border-error/30 text-error text-sm rounded-lg flex items-center gap-2">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -257,12 +257,12 @@ export default function FeedRulesPanel({
 
           {/* Active Rules List */}
           <div>
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+            <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
               Active rules {rules.length > 0 && `(${rules.length})`}
             </h3>
 
             {rules.length === 0 ? (
-              <p className="text-sm text-gray-400 py-3 text-center bg-gray-900/40 rounded-lg border border-gray-800/50">
+              <p className="text-sm text-text-muted py-3 text-center bg-surface-hover/50 rounded-lg border border-border">
                 No active feed rules. Tap below to create temporary filters or ranking rules.
               </p>
             ) : (
@@ -270,13 +270,13 @@ export default function FeedRulesPanel({
                 {rules.map((rule) => (
                   <div
                     key={rule._id}
-                    className="flex items-center justify-between px-3.5 py-2.5 bg-gray-900/80 border border-gray-800 rounded-xl"
+                    className="flex items-center justify-between px-3.5 py-2.5 bg-surface-hover/80 border border-border rounded-xl"
                   >
                     <div className="min-w-0 pr-2">
-                      <p className="text-sm font-medium text-white truncate">
+                      <p className="text-sm font-medium text-text truncate">
                         {formatRuleLabel(rule)}
                       </p>
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-text-muted">
                         {formatDurationLabel(rule.duration)}
                       </p>
                     </div>
@@ -285,7 +285,7 @@ export default function FeedRulesPanel({
                       onClick={() => handleDelete(rule._id)}
                       disabled={deletingId === rule._id}
                       aria-label={`Remove rule: ${formatRuleLabel(rule)}`}
-                      className="p-1.5 rounded-full text-gray-400 hover:text-red-400 hover:bg-red-950/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50"
+                      className="p-1.5 rounded-full text-text-muted hover:text-error hover:bg-error/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error disabled:opacity-50"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -303,19 +303,19 @@ export default function FeedRulesPanel({
                 setShowAddForm(true);
                 setError("");
               }}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-primary/30 bg-primary-soft hover:bg-primary/20 text-primary text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <Plus className="h-4 w-4" />
               <span>Add rule</span>
             </button>
           ) : (
-            <div className="p-4 bg-gray-900/60 border border-gray-800 rounded-xl space-y-4">
+            <div className="p-4 bg-surface-hover/60 border border-border rounded-xl space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-white">New Feed Rule</span>
+                <span className="text-sm font-bold text-text">New Feed Rule</span>
                 <button
                   type="button"
                   onClick={() => setShowAddForm(false)}
-                  className="text-xs text-gray-400 hover:text-gray-200"
+                  className="text-xs text-text-muted hover:text-text"
                 >
                   Cancel
                 </button>
@@ -323,7 +323,7 @@ export default function FeedRulesPanel({
 
               {/* Step 1: Rule Type */}
               <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                <label className="block text-xs font-semibold text-text mb-1.5">
                   Rule Type
                 </label>
                 <div className="space-y-1.5">
@@ -337,12 +337,12 @@ export default function FeedRulesPanel({
                       }}
                       className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors text-left ${
                         selectedType === type.id
-                          ? "bg-blue-600/20 border border-blue-500 text-blue-400 font-medium"
-                          : "bg-gray-950/60 border border-gray-800 text-gray-300 hover:bg-gray-800"
+                          ? "bg-primary-soft border border-primary text-primary font-medium"
+                          : "bg-surface border border-border text-text hover:bg-surface-hover"
                       }`}
                     >
                       <span>{type.label}</span>
-                      {selectedType === type.id && <Check className="h-4 w-4 text-blue-400" />}
+                      {selectedType === type.id && <Check className="h-4 w-4 text-primary" />}
                     </button>
                   ))}
                 </div>
@@ -351,7 +351,7 @@ export default function FeedRulesPanel({
               {/* If Topic Rule: Topic Search & Selector */}
               {isTopicRule && (
                 <div>
-                  <label htmlFor="topic-search-input" className="block text-xs font-semibold text-gray-300 mb-1.5">
+                  <label htmlFor="topic-search-input" className="block text-xs font-semibold text-text mb-1.5">
                     {selectedType === "hide_topic"
                       ? "Select Topic to Hide"
                       : selectedType === "boost_topic"
@@ -364,13 +364,13 @@ export default function FeedRulesPanel({
                     value={topicSearch}
                     onChange={(e) => setTopicSearch(e.target.value)}
                     placeholder="Search topics..."
-                    className="w-full px-3 py-2 bg-gray-950 border border-gray-800 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 mb-2"
+                    className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary mb-2"
                   />
-                  <div className="max-h-36 overflow-y-auto space-y-1 border border-gray-800/80 rounded-lg p-1 bg-gray-950/50">
+                  <div className="max-h-36 overflow-y-auto space-y-1 border border-border rounded-lg p-1 bg-surface">
                     {loadingTopics ? (
-                      <p className="text-xs text-gray-500 p-2 text-center">Loading topics...</p>
+                      <p className="text-xs text-text-muted p-2 text-center">Loading topics...</p>
                     ) : availableTopics.length === 0 ? (
-                      <p className="text-xs text-gray-500 p-2 text-center">No matching topics found</p>
+                      <p className="text-xs text-text-muted p-2 text-center">No matching topics found</p>
                     ) : (
                       availableTopics.map((topic) => (
                         <button
@@ -379,8 +379,8 @@ export default function FeedRulesPanel({
                           onClick={() => setSelectedTopic(topic)}
                           className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs flex items-center justify-between ${
                             selectedTopic?._id === topic._id
-                              ? "bg-blue-600 text-white font-semibold"
-                              : "text-gray-300 hover:bg-gray-800"
+                              ? "bg-primary text-on-primary font-semibold"
+                              : "text-text hover:bg-surface-hover"
                           }`}
                         >
                           <span className="truncate">{topic.name}</span>
@@ -395,14 +395,14 @@ export default function FeedRulesPanel({
               {/* If Circle Rule: Circle Selector (from /me/circles) */}
               {isCircleRule && (
                 <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-text mb-1.5">
                     Select Joined Circle to Prioritize
                   </label>
-                  <div className="max-h-36 overflow-y-auto space-y-1 border border-gray-800/80 rounded-lg p-1 bg-gray-950/50">
+                  <div className="max-h-36 overflow-y-auto space-y-1 border border-border rounded-lg p-1 bg-surface">
                     {loadingCircles ? (
-                      <p className="text-xs text-gray-500 p-2 text-center">Loading your circles...</p>
+                      <p className="text-xs text-text-muted p-2 text-center">Loading your circles...</p>
                     ) : availableCircles.length === 0 ? (
-                      <p className="text-xs text-gray-500 p-2 text-center">You have not joined any circles yet</p>
+                      <p className="text-xs text-text-muted p-2 text-center">You have not joined any circles yet</p>
                     ) : (
                       availableCircles.map((circle) => (
                         <button
@@ -411,8 +411,8 @@ export default function FeedRulesPanel({
                           onClick={() => setSelectedCircle(circle)}
                           className={`w-full text-left px-2.5 py-1.5 rounded-md text-xs flex items-center justify-between ${
                             selectedCircle?._id === circle._id
-                              ? "bg-blue-600 text-white font-semibold"
-                              : "text-gray-300 hover:bg-gray-800"
+                              ? "bg-primary text-on-primary font-semibold"
+                              : "text-text hover:bg-surface-hover"
                           }`}
                         >
                           <span className="truncate">{circle.name}</span>
@@ -426,7 +426,7 @@ export default function FeedRulesPanel({
 
               {/* Step 2: Duration */}
               <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                <label className="block text-xs font-semibold text-text mb-1.5">
                   Duration
                 </label>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -437,8 +437,8 @@ export default function FeedRulesPanel({
                       onClick={() => setSelectedDuration(dur.id)}
                       className={`px-3 py-2 rounded-lg text-xs font-medium text-center transition-colors ${
                         selectedDuration === dur.id
-                          ? "bg-blue-600/20 border border-blue-500 text-blue-400 font-semibold"
-                          : "bg-gray-950/60 border border-gray-800 text-gray-300 hover:bg-gray-800"
+                          ? "bg-primary-soft border border-primary text-primary font-semibold"
+                          : "bg-surface border border-border text-text hover:bg-surface-hover"
                       }`}
                     >
                       {dur.label}
@@ -452,7 +452,7 @@ export default function FeedRulesPanel({
                 type="button"
                 onClick={handleApply}
                 disabled={submitting}
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="w-full py-2.5 bg-primary hover:bg-primary-hover text-on-primary text-sm font-semibold rounded-xl transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 {submitting ? "Applying..." : "Apply Rule"}
               </button>

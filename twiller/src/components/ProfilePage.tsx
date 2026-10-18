@@ -262,18 +262,18 @@ export default function ProfilePage() {
         </TabsList>
 
         <TabsContent value="posts" className="mt-0">
-          <div className="divide-y divide-gray-800">
+          <div className="divide-y divide-border">
           { postsError ? (
-            <div role="alert" className="p-8 text-center text-red-400">
+            <div role="alert" className="p-8 text-center text-error">
               Your posts couldn’t be loaded. <button type="button" className="underline" onClick={() => setPostsRetry(value => value + 1)}>Retry</button>
             </div>
           ) : loading ? (
             <PostSkeleton count={3} />
           ) : userTweets.length === 0 ? (
-            <Card className="bg-black border-none">
+            <Card className="bg-surface border-none">
               <CardContent className="py-12 text-center">
-                <div className="text-gray-400">
-              <h3 className="text-2xl font-bold mb-2">You haven&apos;t posted yet</h3>
+                <div className="text-text-muted">
+              <h3 className="text-2xl font-bold mb-2 text-text">You haven&apos;t posted yet</h3>
                   <p>When you post, it will show up here.</p>
                 </div>
               </CardContent>
@@ -283,33 +283,33 @@ export default function ProfilePage() {
               <TweetCard key={tweet._id} tweet={tweet} onDeleted={(id) => setUserTweets((previous) => previous.filter((item) => item._id !== id))} />
             ))
           )}
-          {postsMoreError && <div role="alert" className="p-3 text-center text-red-400">More posts couldn’t be loaded. <button type="button" className="underline" onClick={() => void fetchTweets(postsCursor, true)}>Retry</button></div>}
-          {postsHasMore && !loading && !postsMoreError && <div className="p-4 text-center"><button type="button" disabled={postsLoadingMore} onClick={() => void fetchTweets(postsCursor, true)} className="rounded-full border border-gray-700 px-5 py-2 text-sm text-white disabled:opacity-50">{postsLoadingMore ? "Loading…" : "Load more posts"}</button></div>}
+          {postsMoreError && <div role="alert" className="p-3 text-center text-error">More posts couldn’t be loaded. <button type="button" className="underline" onClick={() => void fetchTweets(postsCursor, true)}>Retry</button></div>}
+          {postsHasMore && !loading && !postsMoreError && <div className="p-4 text-center"><button type="button" disabled={postsLoadingMore} onClick={() => void fetchTweets(postsCursor, true)} className="rounded-full border border-border px-5 py-2 text-sm text-text hover:bg-surface-hover disabled:opacity-50">{postsLoadingMore ? "Loading…" : "Load more posts"}</button></div>}
           </div>
         </TabsContent>
 
         <TabsContent value="replies" className="mt-0">
-          {repliesError ? <div role="alert" className="p-8 text-center text-red-400">Replies couldn’t be loaded. <button type="button" className="underline" onClick={() => setRepliesRetry(value => value + 1)}>Retry</button></div> : repliesLoading ? <PostSkeleton count={3} /> : <>
-          {userReplies.length ? <div className="divide-y divide-gray-800">{userReplies.map(reply => <TweetCard key={reply._id} tweet={reply} />)}</div> : <Card className="bg-black border-none">
+          {repliesError ? <div role="alert" className="p-8 text-center text-error">Replies couldn’t be loaded. <button type="button" className="underline" onClick={() => setRepliesRetry(value => value + 1)}>Retry</button></div> : repliesLoading ? <PostSkeleton count={3} /> : <>
+          {userReplies.length ? <div className="divide-y divide-border">{userReplies.map(reply => <TweetCard key={reply._id} tweet={reply} />)}</div> : <Card className="bg-surface border-none">
             <CardContent className="py-12 text-center">
-              <div className="text-gray-400">
-                <h3 className="text-2xl font-bold mb-2">
+              <div className="text-text-muted">
+                <h3 className="text-2xl font-bold mb-2 text-text">
                   No replies yet
                 </h3>
                 <p>Your replies to posts will appear here.</p>
               </div>
             </CardContent>
           </Card>}
-          {repliesMoreError && <div role="alert" className="p-3 text-center text-red-400">More replies couldn’t be loaded. <button type="button" className="underline" onClick={() => void fetchReplies(repliesCursor, true)}>Retry</button></div>}
-          {repliesHasMore && !repliesMoreError && <div className="p-4 text-center"><button type="button" disabled={repliesLoadingMore} onClick={() => void fetchReplies(repliesCursor, true)} className="rounded-full border border-gray-700 px-5 py-2 text-sm text-white disabled:opacity-50">{repliesLoadingMore ? "Loading…" : "Load more replies"}</button></div>}
+          {repliesMoreError && <div role="alert" className="p-3 text-center text-error">More replies couldn’t be loaded. <button type="button" className="underline" onClick={() => void fetchReplies(repliesCursor, true)}>Retry</button></div>}
+          {repliesHasMore && !repliesMoreError && <div className="p-4 text-center"><button type="button" disabled={repliesLoadingMore} onClick={() => void fetchReplies(repliesCursor, true)} className="rounded-full border border-border px-5 py-2 text-sm text-text hover:bg-surface-hover disabled:opacity-50">{repliesLoadingMore ? "Loading…" : "Load more replies"}</button></div>}
           </>}
         </TabsContent>
 
         <TabsContent value="media" className="mt-0">
-          {loading ? <div role="status" aria-label="Loading media" className="grid grid-cols-3 gap-1 p-1">{[1,2,3,4,5,6].map(index => <div key={index} className="aspect-square animate-pulse rounded bg-gray-800 motion-reduce:animate-none" />)}</div> : userTweets.some(tweet => tweet.image) ? <div className="grid grid-cols-3 gap-0.5">{userTweets.filter(tweet => tweet.image).map(tweet => <Link key={tweet._id} href={`/status/${tweet._id}`} aria-label="Open post with media"><img src={String(tweet.image)} alt="Post media" className="aspect-square w-full object-cover" /></Link>)}</div> : <Card className="bg-black border-none">
+          {loading ? <div role="status" aria-label="Loading media" className="grid grid-cols-3 gap-1 p-1">{[1,2,3,4,5,6].map(index => <div key={index} className="aspect-square animate-pulse rounded bg-surface-hover motion-reduce:animate-none" />)}</div> : userTweets.some(tweet => tweet.image) ? <div className="grid grid-cols-3 gap-0.5">{userTweets.filter(tweet => tweet.image).map(tweet => <Link key={tweet._id} href={`/status/${tweet._id}`} aria-label="Open post with media"><img src={String(tweet.image)} alt="Post media" className="aspect-square w-full object-cover" /></Link>)}</div> : <Card className="bg-surface border-none">
             <CardContent className="py-12 text-center">
-              <div className="text-gray-400">
-                <h3 className="text-2xl font-bold mb-2">No media yet</h3>
+              <div className="text-text-muted">
+                <h3 className="text-2xl font-bold mb-2 text-text">No media yet</h3>
                 <p>Posts with images will appear here.</p>
               </div>
             </CardContent>
@@ -317,29 +317,29 @@ export default function ProfilePage() {
         </TabsContent>
 
         <TabsContent value="sessions" className="mt-0">
-          <div className="divide-y divide-gray-800 px-4">
+          <div className="divide-y divide-border px-4">
             <div className="py-6">
-              <h3 className="text-xl font-bold text-white mb-4">Login History</h3>
+              <h3 className="text-xl font-bold text-text mb-4">Login History</h3>
               {user.loginHistory && user.loginHistory.length > 0 ? (
                 <div className="space-y-4">
                   {[...user.loginHistory].reverse().map((session: any, i: number) => (
-                    <div key={i} className="p-4 bg-gray-900 rounded-xl border border-gray-800 flex flex-col space-y-2">
+                    <div key={i} className="p-4 bg-surface-hover rounded-xl border border-border flex flex-col space-y-2">
                       <div className="flex justify-between items-center">
-                        <span className="font-semibold text-white capitalize">{session.device} • {session.os}</span>
-                        <span className={`px-2 py-1 text-xs font-bold rounded-full ${session.status === 'success' ? 'bg-green-950 text-green-500' : session.status === 'blocked' ? 'bg-red-950 text-red-500' : 'bg-yellow-950 text-yellow-500'}`}>
+                        <span className="font-semibold text-text capitalize">{session.device} • {session.os}</span>
+                        <span className={`px-2 py-1 text-xs font-bold rounded-full ${session.status === 'success' ? 'bg-success/15 text-success' : session.status === 'blocked' ? 'bg-error/15 text-error' : 'bg-warning/15 text-warning'}`}>
                           {session.status.toUpperCase()}
                         </span>
                       </div>
-                      <div className="text-sm text-gray-400 flex justify-between">
+                      <div className="text-sm text-text-muted flex justify-between">
                         <span>{session.browser}</span>
                         <span>{new Date(session.timestamp).toLocaleString()}</span>
                       </div>
-                      <div className="text-xs text-gray-500 font-mono">IP: {session.ip}</div>
+                      <div className="text-xs text-text-muted font-mono">IP: {session.ip}</div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-400 text-center py-8">No login history available.</p>
+                <p className="text-text-muted text-center py-8">No login history available.</p>
               )}
             </div>
           </div>

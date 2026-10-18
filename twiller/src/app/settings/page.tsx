@@ -18,8 +18,8 @@ export default function SettingsRoute() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <div role="status" className="text-sm text-gray-500">Redirecting to Twiller…</div>
+      <div className="min-h-screen bg-bg text-text flex items-center justify-center">
+        <div role="status" className="text-sm text-text-muted">Redirecting to Twiller…</div>
       </div>
     );
   }

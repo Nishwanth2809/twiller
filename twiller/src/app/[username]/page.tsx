@@ -154,12 +154,12 @@ export default function UserProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black text-white max-w-2xl mx-auto border-x border-gray-800">
-        <div className="sticky top-0 bg-black/90 backdrop-blur-md border-b border-gray-800 z-10 px-4 py-3 flex items-center gap-4">
-          <button onClick={handleBack} className="p-2 rounded-full hover:bg-gray-900 transition-colors">
-            <ArrowLeft className="h-5 w-5 text-white" />
+      <div className="min-h-screen bg-bg text-text max-w-2xl mx-auto border-x border-border">
+        <div className="sticky top-0 bg-surface/90 backdrop-blur-md border-b border-border z-10 px-4 py-3 flex items-center gap-4">
+          <button onClick={handleBack} className="p-2 rounded-full hover:bg-surface-hover transition-colors">
+            <ArrowLeft className="h-5 w-5 text-text" />
           </button>
-          <h1 className="text-xl font-bold text-white">Profile</h1>
+          <h1 className="text-xl font-bold text-text">Profile</h1>
         </div>
         <ProfileSkeleton />
       </div>
@@ -167,24 +167,24 @@ export default function UserProfilePage() {
   }
 
   if (profileError) {
-    return <div role="alert" className="min-h-screen bg-black p-8 text-center text-red-300">This profile couldn’t be loaded. <button type="button" className="underline" onClick={() => setProfileRetry(value => value + 1)}>Retry</button></div>;
+    return <div role="alert" className="min-h-screen bg-bg p-8 text-center text-error">This profile couldn’t be loaded. <button type="button" className="underline" onClick={() => setProfileRetry(value => value + 1)}>Retry</button></div>;
   }
 
   if (notFound || !profileUser) {
     return (
-      <div className="min-h-screen bg-black text-white max-w-2xl mx-auto border-x border-gray-800">
-        <div className="sticky top-0 bg-black/90 backdrop-blur-md border-b border-gray-800 z-10 px-4 py-3 flex items-center gap-4">
-          <button onClick={handleBack} className="p-2 rounded-full hover:bg-gray-900 transition-colors">
-            <ArrowLeft className="h-5 w-5 text-white" />
+      <div className="min-h-screen bg-bg text-text max-w-2xl mx-auto border-x border-border">
+        <div className="sticky top-0 bg-surface/90 backdrop-blur-md border-b border-border z-10 px-4 py-3 flex items-center gap-4">
+          <button onClick={handleBack} className="p-2 rounded-full hover:bg-surface-hover transition-colors">
+            <ArrowLeft className="h-5 w-5 text-text" />
           </button>
-          <h1 className="text-xl font-bold text-white">Profile</h1>
+          <h1 className="text-xl font-bold text-text">Profile</h1>
         </div>
         <div className="py-20 text-center">
-          <h2 className="text-2xl font-bold text-white mb-2">This account doesn&apos;t exist</h2>
-          <p className="text-gray-500">Try searching for another user.</p>
+          <h2 className="text-2xl font-bold text-text mb-2">This account doesn&apos;t exist</h2>
+          <p className="text-text-muted">Try searching for another user.</p>
           <button
             onClick={() => (window.location.href = "/")}
-            className="mt-6 px-6 py-2 bg-blue-500 text-white rounded-full font-semibold hover:bg-blue-600 transition-colors"
+            className="mt-6 px-6 py-2 bg-primary text-on-primary rounded-full font-semibold hover:bg-primary-hover transition-colors"
           >
             Go Home
           </button>
@@ -205,7 +205,7 @@ export default function UserProfilePage() {
           <p className="text-sm text-text-muted">{tweets.length} posts</p>
         </div>
       </div>
-      {followError && <p role="alert" className="mx-4 mt-3 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-500">Your follow change couldn’t be saved. Please try again.</p>}
+      {followError && <p role="alert" className="mx-4 mt-3 rounded-lg border border-error/30 bg-error/10 p-3 text-sm text-error">Your follow change couldn’t be saved. Please try again.</p>}
 
       {/* Cover */}
       <div className="h-48 bg-gradient-to-br from-primary via-indigo-600 to-accent relative" />
@@ -238,8 +238,8 @@ export default function UserProfilePage() {
               disabled={followLoading || !currentUser}
               className={`rounded-full px-5 font-bold transition-all ${
                 isFollowing
-                  ? "border border-border bg-surface text-text hover:border-rose-500 hover:text-rose-500 hover:bg-rose-500/10"
-                  : "bg-primary text-white hover:bg-primary-hover active:scale-95 shadow-xs"
+                  ? "border border-border bg-surface text-text hover:border-error hover:text-error hover:bg-error/10"
+                  : "bg-primary text-on-primary hover:bg-primary-hover active:scale-95 shadow-xs"
               }`}
             >
               {isFollowing ? (
@@ -351,21 +351,21 @@ export default function UserProfilePage() {
               ))}
             </div>
           ) : tweets.length === 0 ? (
-            <Card className="bg-black border-none">
+            <Card className="bg-surface border-none">
               <CardContent className="py-16 text-center">
-                <p className="text-xl font-bold text-white mb-2">No posts yet</p>
-                <p className="text-gray-500 text-sm">When @{username} posts, it will show up here.</p>
+                <p className="text-xl font-bold text-text mb-2">No posts yet</p>
+                <p className="text-text-muted text-sm">When @{username} posts, it will show up here.</p>
               </CardContent>
             </Card>
           ) : (
-            <div className="divide-y divide-gray-800">
+            <div className="divide-y divide-border">
               {tweets.map((tweet) => (
                 <TweetCard key={tweet._id} tweet={tweet} onDeleted={(id) => setTweets((previous) => previous.filter((item) => item._id !== id))} />
               ))}
             </div>
           )}
-          {tweetsMoreError && <div role="alert" className="p-3 text-center text-red-300">More posts couldn’t be loaded. <button type="button" className="underline" onClick={() => void fetchTweets(tweetsCursor, true)}>Retry</button></div>}
-          {tweetsHasMore && !tweetsLoading && !tweetsMoreError && <div className="p-4 text-center"><button type="button" disabled={tweetsLoadingMore} onClick={() => void fetchTweets(tweetsCursor, true)} className="rounded-full border border-gray-700 px-5 py-2 text-sm text-white disabled:opacity-50">{tweetsLoadingMore ? "Loading…" : "Load more posts"}</button></div>}
+          {tweetsMoreError && <div role="alert" className="p-3 text-center text-error">More posts couldn’t be loaded. <button type="button" className="underline" onClick={() => void fetchTweets(tweetsCursor, true)}>Retry</button></div>}
+          {tweetsHasMore && !tweetsLoading && !tweetsMoreError && <div className="p-4 text-center"><button type="button" disabled={tweetsLoadingMore} onClick={() => void fetchTweets(tweetsCursor, true)} className="rounded-full border border-border px-5 py-2 text-sm text-text hover:bg-surface-hover disabled:opacity-50">{tweetsLoadingMore ? "Loading…" : "Load more posts"}</button></div>}
         </TabsContent>
 
         <TabsContent value="media" className="mt-0">
@@ -374,10 +374,10 @@ export default function UserProfilePage() {
             if (tweetsLoading) return null;
             if (mediaTweets.length === 0) {
               return (
-                <Card className="bg-black border-none">
+                <Card className="bg-surface border-none">
                   <CardContent className="py-16 text-center">
-                    <p className="text-xl font-bold text-white mb-2">No media yet</p>
-                    <p className="text-gray-500 text-sm">Posts with images will appear here.</p>
+                    <p className="text-xl font-bold text-text mb-2">No media yet</p>
+                    <p className="text-text-muted text-sm">Posts with images will appear here.</p>
                   </CardContent>
                 </Card>
               );
@@ -398,10 +398,10 @@ export default function UserProfilePage() {
         </TabsContent>
 
         <TabsContent value="likes" className="mt-0">
-          <Card className="bg-black border-none">
+          <Card className="bg-surface border-none">
             <CardContent className="py-16 text-center">
-              <p className="text-xl font-bold text-white mb-2">Likes are private</p>
-              <p className="text-gray-500 text-sm">Like information is not publicly available.</p>
+              <p className="text-xl font-bold text-text mb-2">Likes are private</p>
+              <p className="text-text-muted text-sm">Like information is not publicly available.</p>
             </CardContent>
           </Card>
         </TabsContent>

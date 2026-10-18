@@ -95,16 +95,16 @@ export default function PostDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black text-white max-w-2xl mx-auto border-x border-gray-800">
-        <div className="sticky top-0 bg-black/90 backdrop-blur-md border-b border-gray-800 z-10 px-4 py-3 flex items-center gap-4">
+      <div className="min-h-screen bg-bg text-text max-w-2xl mx-auto border-x border-border">
+        <div className="sticky top-0 bg-surface/90 backdrop-blur-md border-b border-border z-10 px-4 py-3 flex items-center gap-4">
           <button
             onClick={handleBack}
-            className="p-2 rounded-full hover:bg-gray-900 transition-colors"
+            className="p-2 rounded-full hover:bg-surface-hover transition-colors"
             aria-label="Go back"
           >
-            <ArrowLeft className="h-5 w-5 text-white" />
+            <ArrowLeft className="h-5 w-5 text-text" />
           </button>
-          <h1 className="text-xl font-bold text-white">Post</h1>
+          <h1 className="text-xl font-bold text-text">Post</h1>
         </div>
         <TweetSkeleton />
         <TweetSkeleton />
@@ -115,23 +115,23 @@ export default function PostDetailPage() {
 
   if (notFound || !tweet) {
     return (
-      <div className="min-h-screen bg-black text-white max-w-2xl mx-auto border-x border-gray-800">
-        <div className="sticky top-0 bg-black/90 backdrop-blur-md border-b border-gray-800 z-10 px-4 py-3 flex items-center gap-4">
+      <div className="min-h-screen bg-bg text-text max-w-2xl mx-auto border-x border-border">
+        <div className="sticky top-0 bg-surface/90 backdrop-blur-md border-b border-border z-10 px-4 py-3 flex items-center gap-4">
           <button
             onClick={handleBack}
-            className="p-2 rounded-full hover:bg-gray-900 transition-colors"
+            className="p-2 rounded-full hover:bg-surface-hover transition-colors"
             aria-label="Go back"
           >
-            <ArrowLeft className="h-5 w-5 text-white" />
+            <ArrowLeft className="h-5 w-5 text-text" />
           </button>
-          <h1 className="text-xl font-bold text-white">Post</h1>
+          <h1 className="text-xl font-bold text-text">Post</h1>
         </div>
         <div className="py-20 text-center">
-          <h2 className="text-2xl font-bold text-white mb-2">This post doesn't exist</h2>
-          <p className="text-gray-500">It may have been deleted.</p>
+          <h2 className="text-2xl font-bold text-text mb-2">This post doesn't exist</h2>
+          <p className="text-text-muted">It may have been deleted.</p>
           <button
             onClick={() => (window.location.href = "/")}
-            className="mt-6 px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full font-semibold transition-colors"
+            className="mt-6 px-6 py-2 bg-primary hover:bg-primary-hover text-on-primary rounded-full font-semibold transition-colors"
           >
             Go Home
           </button>
@@ -141,17 +141,17 @@ export default function PostDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white max-w-2xl mx-auto border-x border-gray-800">
+    <div className="min-h-screen bg-bg text-text max-w-2xl mx-auto border-x border-border">
       {/* Header */}
-      <div className="sticky top-0 bg-black/90 backdrop-blur-md border-b border-gray-800 z-10 px-4 py-3 flex items-center gap-4">
+      <div className="sticky top-0 bg-surface/90 backdrop-blur-md border-b border-border z-10 px-4 py-3 flex items-center gap-4">
         <button
           onClick={handleBack}
-          className="p-2 rounded-full hover:bg-gray-900 transition-colors"
+          className="p-2 rounded-full hover:bg-surface-hover transition-colors"
           aria-label="Go back"
         >
-          <ArrowLeft className="h-5 w-5 text-white" />
+          <ArrowLeft className="h-5 w-5 text-text" />
         </button>
-        <h1 className="text-xl font-bold text-white">Post</h1>
+        <h1 className="text-xl font-bold text-text">Post</h1>
       </div>
 
       {/* Main tweet */}
@@ -162,15 +162,15 @@ export default function PostDetailPage() {
       />
 
       {/* Stats row */}
-      <div className="border-b border-gray-800 px-4 py-3 flex items-center gap-6 text-sm text-gray-500">
+      <div className="border-b border-border px-4 py-3 flex items-center gap-6 text-sm text-text-muted">
         <span>
-          <span className="text-white font-bold">{tweet.retweets || 0}</span> Echoes
+          <span className="text-text font-bold">{tweet.retweets || 0}</span> Echoes
         </span>
         <span>
-          <span className="text-white font-bold">{tweet.likes || 0}</span> Likes
+          <span className="text-text font-bold">{tweet.likes || 0}</span> Likes
         </span>
         <span>
-          <span className="text-white font-bold">{replies.length}</span> Replies
+          <span className="text-text font-bold">{replies.length}</span> Replies
         </span>
       </div>
 
@@ -179,11 +179,11 @@ export default function PostDetailPage() {
 
       {/* Reply composer */}
       {user && (
-        <div className="border-b border-gray-800 p-4">
+        <div className="border-b border-border p-4">
           <form onSubmit={handleReply} className="flex gap-3">
             <Avatar className="h-10 w-10 flex-shrink-0">
               <AvatarImage src={user.avatar} alt="" />
-              <AvatarFallback aria-hidden="true" className="bg-gray-800 text-white">{user.displayName?.[0]}</AvatarFallback>
+              <AvatarFallback aria-hidden="true" className="bg-primary-soft text-primary">{user.displayName?.[0]}</AvatarFallback>
             </Avatar>
             <div className="flex-1">
               <Textarea
@@ -193,22 +193,22 @@ export default function PostDetailPage() {
                   setReplyContent(e.target.value);
                   if (replyError) setReplyError("");
                 }}
-                className="bg-transparent border-none text-white placeholder-gray-500 resize-none min-h-[80px] focus-visible:ring-0 focus-visible:ring-offset-0 text-base p-0"
+                className="bg-transparent border-none text-text placeholder-text-muted resize-none min-h-[80px] focus-visible:ring-0 focus-visible:ring-offset-0 text-base p-0"
                 maxLength={280}
               />
               {replyError && (
-                <p role="alert" className="mt-2 text-sm text-red-400">
+                <p role="alert" className="mt-2 text-sm text-error">
                   {replyError}
                 </p>
               )}
               <div className="flex justify-between items-center mt-2">
-                <span className={`text-xs ${replyContent.length > 250 ? "text-yellow-500" : "text-gray-600"}`}>
+                <span className={`text-xs ${replyContent.length > 250 ? "text-warning" : "text-text-muted"}`}>
                   {replyContent.length}/280
                 </span>
                 <Button
                   type="submit"
                   disabled={!replyContent.trim() || submitting || replyContent.length > 280}
-                  className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-700 text-white font-bold rounded-full px-5"
+                  className="bg-primary hover:bg-primary-hover disabled:opacity-50 text-on-primary font-bold rounded-full px-5"
                 >
                   {submitting ? "Posting..." : "Reply"}
                 </Button>
@@ -221,8 +221,8 @@ export default function PostDetailPage() {
       {/* Replies */}
       <div>
         {replies.length === 0 ? (
-          <div className="py-12 text-center text-gray-500">
-            <MessageCircle className="h-10 w-10 mx-auto mb-3 text-gray-700" />
+          <div className="py-12 text-center text-text-muted">
+            <MessageCircle className="h-10 w-10 mx-auto mb-3 text-text-muted" />
             <p>No replies yet. Be the first to reply!</p>
           </div>
         ) : (

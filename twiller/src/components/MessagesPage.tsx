@@ -93,16 +93,16 @@ function NewMessageModal({
 
   return (
     <AccessibleDialog open onClose={onClose} labelledBy="new-message-title" closeOnBackdrop>
-      <div className="mt-12 w-full max-w-lg rounded-2xl border border-gray-800 bg-black text-white shadow-2xl">
-        <div className="flex items-center px-4 py-3 border-b border-gray-800">
-          <button type="button" aria-label="Close new message" onClick={onClose} className="mr-3 min-h-11 min-w-11 rounded-full p-2 hover:bg-gray-900">
-            <X aria-hidden="true" className="h-5 w-5 text-white" />
+      <div className="mt-12 w-full max-w-lg rounded-2xl border border-border bg-surface text-text shadow-2xl">
+        <div className="flex items-center px-4 py-3 border-b border-border">
+          <button type="button" aria-label="Close new message" onClick={onClose} className="mr-3 min-h-11 min-w-11 rounded-full p-2 hover:bg-surface-hover">
+            <X aria-hidden="true" className="h-5 w-5 text-text" />
           </button>
-          <h2 id="new-message-title" className="text-xl font-bold text-white flex-1">New message</h2>
+          <h2 id="new-message-title" className="text-xl font-bold text-text flex-1">New message</h2>
         </div>
-        <div className="px-4 py-3 border-b border-gray-800">
+        <div className="px-4 py-3 border-b border-border">
           <div className="relative">
-            <Search aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-400" />
+            <Search aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary" />
             <label htmlFor="new-message-search" className="sr-only">Search people to message</label>
             <input
               id="new-message-search"
@@ -111,29 +111,29 @@ function NewMessageModal({
               placeholder="Search people"
               value={query}
               onChange={(e) => handleSearch(e.target.value)}
-              className="w-full bg-transparent text-white placeholder-gray-500 pl-10 py-2 border-0 focus:outline-none text-sm"
+              className="w-full bg-transparent text-text placeholder-text-muted pl-10 py-2 border-0 focus:outline-none text-sm"
             />
           </div>
         </div>
         <div className="max-h-80 overflow-y-auto">
-          {searching && <p role="status" className="text-gray-500 text-sm p-4">Searching...</p>}
+          {searching && <p role="status" className="text-text-muted text-sm p-4">Searching...</p>}
           {!searching && query && results.length === 0 && (
-            <p role={searchFailed ? "alert" : undefined} className={`${searchFailed ? "text-red-400" : "text-gray-500"} text-sm p-4`}>{searchFailed ? "Search failed. Try again." : `No results for “${query}”`}</p>
+            <p role={searchFailed ? "alert" : undefined} className={`${searchFailed ? "text-error" : "text-text-muted"} text-sm p-4`}>{searchFailed ? "Search failed. Try again." : `No results for “${query}”`}</p>
           )}
           {results.map((u) => (
             <button
               type="button"
               key={u._id}
               onClick={() => onSelect(u)}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-900 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface-hover transition-colors"
             >
               <Avatar className="h-10 w-10 flex-shrink-0">
                 <AvatarImage src={u.avatar || undefined} alt="" />
-                <AvatarFallback aria-hidden="true" className="bg-gray-800 text-white">{u.displayName?.[0]}</AvatarFallback>
+                <AvatarFallback aria-hidden="true" className="bg-primary-soft text-primary">{u.displayName?.[0]}</AvatarFallback>
               </Avatar>
               <div className="text-left">
-                <div className="text-white font-semibold">{u.displayName}</div>
-                <div className="text-gray-500 text-sm">@{u.username}</div>
+                <div className="text-text font-semibold">{u.displayName}</div>
+                <div className="text-text-muted text-sm">@{u.username}</div>
               </div>
             </button>
           ))}
@@ -313,7 +313,7 @@ function ChatView({
       <div role="log" aria-label={other ? `Conversation with ${other.displayName}` : "Conversation messages"} aria-live="polite" aria-relevant="additions" ref={messagesContainerRef} onScroll={(event) => { const node = event.currentTarget; stickToBottomRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 120; }} className="flex-1 overflow-y-auto p-4 space-y-3">
         {hasOlder && (
           <div className="text-center">
-            <Button type="button" variant="ghost" onClick={loadOlder} disabled={loadingOlder} className="text-blue-400">
+            <Button type="button" variant="ghost" onClick={loadOlder} disabled={loadingOlder} className="text-primary">
               {loadingOlder ? "Loading…" : "Load older messages"}
             </Button>
           </div>
@@ -324,10 +324,10 @@ function ChatView({
               <>
                 <Avatar className="h-20 w-20 mx-auto mb-4">
                   <AvatarImage src={other.avatar || undefined} alt="" />
-                  <AvatarFallback aria-hidden="true" className="bg-gray-800 text-white text-2xl">{other.displayName?.[0]}</AvatarFallback>
+                  <AvatarFallback aria-hidden="true" className="bg-surface-hover text-text text-2xl">{other.displayName?.[0]}</AvatarFallback>
                 </Avatar>
-                <h3 className="text-white text-xl font-bold">{other.displayName}</h3>
-                <p className="text-gray-500 text-sm mt-1">@{other.username}</p>
+                <h3 className="text-text text-xl font-bold">{other.displayName}</h3>
+                <p className="text-text-muted text-sm mt-1">@{other.username}</p>
                 <p className="text-gray-500 text-sm mt-4">
                   This is the beginning of your conversation with {other.displayName}.
                 </p>
@@ -356,21 +356,21 @@ function ChatView({
                 {!isMe && (
                   <Avatar className="h-8 w-8 flex-shrink-0 mb-1">
                     <AvatarImage src={msg.sender.avatar || undefined} alt="" />
-                    <AvatarFallback aria-hidden="true" className="bg-gray-800 text-white text-xs">{msg.sender.displayName?.[0]}</AvatarFallback>
+                    <AvatarFallback aria-hidden="true" className="bg-surface-hover text-text text-xs">{msg.sender.displayName?.[0]}</AvatarFallback>
                   </Avatar>
                 )}
                 <div className={`max-w-xs lg:max-w-sm group relative`}>
                   <div
                     className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words ${
                       isMe
-                        ? "bg-blue-500 text-white rounded-br-sm"
-                        : "bg-gray-800 text-white rounded-bl-sm"
+                        ? "bg-primary text-on-primary rounded-br-sm"
+                        : "bg-surface-hover text-text rounded-bl-sm"
                     }`}
                   >
                     {msg.content}
                   </div>
                   <div
-                    className={`text-xs text-gray-500 mt-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity ${
+                    className={`text-xs text-text-muted mt-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity ${
                       isMe ? "text-right" : "text-left"
                     }`}
                   >
@@ -388,8 +388,8 @@ function ChatView({
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSend} aria-busy={sending} className="flex items-center gap-3 px-4 py-3 border-t border-gray-800 flex-shrink-0">
-        <div className="flex-1 bg-gray-900 rounded-full px-4 py-2.5 flex items-center">
+      <form onSubmit={handleSend} aria-busy={sending} className="flex items-center gap-3 px-4 py-3 border-t border-border flex-shrink-0">
+        <div className="flex-1 bg-surface rounded-full px-4 py-2.5 flex items-center border border-border">
           <label htmlFor="message-compose" className="sr-only">Send a message</label>
           <input
             id="message-compose"
@@ -401,19 +401,19 @@ function ChatView({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             maxLength={1000}
-            className="flex-1 bg-transparent text-white placeholder-gray-500 focus:outline-none text-sm"
+            className="flex-1 bg-transparent text-text placeholder-text-muted focus:outline-none text-sm"
           />
         </div>
         <Button
           type="submit"
           disabled={!input.trim() || sending}
-          className="h-11 w-11 p-0 rounded-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-800 disabled:text-gray-600 flex-shrink-0 transition-colors"
+          className="h-11 w-11 p-0 rounded-full bg-primary hover:bg-primary-hover disabled:bg-surface-hover disabled:text-text-muted text-on-primary flex-shrink-0 transition-colors"
           aria-label="Send message"
         >
           <Send className="h-4 w-4" />
         </Button>
       </form>
-      {sendError && <p id="message-send-error" role="alert" className="px-4 pb-3 text-sm text-red-400">{sendError}</p>}
+      {sendError && <p id="message-send-error" role="alert" className="px-4 pb-3 text-sm text-error">{sendError}</p>}
     </div>
   );
 }
@@ -443,11 +443,11 @@ function ConversationList({
 }) {
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 flex-shrink-0">
-        <h1 className="text-xl font-bold text-white">Messages</h1>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
+        <h1 className="text-xl font-bold text-text">Messages</h1>
         <button
           onClick={onNewMessage}
-          className="p-2 rounded-full hover:bg-gray-900 transition-colors text-blue-400"
+          className="p-2 rounded-full hover:bg-surface-hover transition-colors text-primary"
           aria-label="New message"
         >
           <Edit className="h-5 w-5" />
@@ -461,16 +461,16 @@ function ConversationList({
 
         {!loading && conversations.length === 0 && (
           <div className="py-16 text-center px-6">
-            <div className="w-16 h-16 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-4">
-              <Send className="h-7 w-7 text-blue-400" />
+            <div className="w-16 h-16 rounded-full bg-primary-soft flex items-center justify-center mx-auto mb-4">
+              <Send className="h-7 w-7 text-primary" />
             </div>
-        <h2 className="text-xl font-bold text-white mb-2">No messages yet</h2>
-            <p className="text-gray-500 text-sm mb-6">
+        <h2 className="text-xl font-bold text-text mb-2">No messages yet</h2>
+            <p className="text-text-muted text-sm mb-6">
               Start a conversation with anyone on Twiller.
             </p>
             <button
               onClick={onNewMessage}
-              className="px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-full text-sm transition-colors"
+              className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-on-primary font-bold rounded-full text-sm transition-colors"
             >
               New message
             </button>
@@ -487,28 +487,28 @@ function ConversationList({
               key={convo._id}
               onClick={() => onSelect(convo)}
               aria-pressed={isSelected}
-              className={`w-full flex items-center gap-3 px-4 py-4 border-b border-gray-800 hover:bg-gray-950/60 transition-colors text-left ${
-                isSelected ? "bg-gray-900" : ""
+              className={`w-full flex items-center gap-3 px-4 py-4 border-b border-border hover:bg-surface-hover transition-colors text-left ${
+                isSelected ? "bg-surface-hover" : ""
               }`}
             >
               <Avatar className="h-12 w-12 flex-shrink-0">
                 <AvatarImage src={other?.avatar || undefined} alt="" />
-                <AvatarFallback aria-hidden="true" className="bg-gray-800 text-white">
+                <AvatarFallback aria-hidden="true" className="bg-surface-hover text-text">
                   {other?.displayName?.[0]}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <span className="text-white font-semibold truncate">{other?.displayName}</span>
+                  <span className="text-text font-semibold truncate">{other?.displayName}</span>
                   {convo.lastMessageAt && (
-                    <span className="text-gray-500 text-xs flex-shrink-0 ml-2">
+                    <span className="text-text-muted text-xs flex-shrink-0 ml-2">
                       {formatTime(convo.lastMessageAt)}
                     </span>
                   )}
                 </div>
-                <p className="text-gray-500 text-sm truncate mt-0.5">
+                <p className="text-text-muted text-sm truncate mt-0.5">
                   {convo.lastMessage ? (
-                    <>{isMe && <span className="text-gray-400">You: </span>}{convo.lastMessage}</>
+                    <>{isMe && <span className="text-text-muted">You: </span>}{convo.lastMessage}</>
                   ) : (
                     <span className="italic">Say hello!</span>
                   )}
@@ -517,7 +517,7 @@ function ConversationList({
             </button>
           );
         })}
-        {hasMore && <div className="p-3 text-center"><Button type="button" variant="ghost" onClick={onLoadMore} disabled={loadingMore} className="text-blue-400">{loadingMore ? "Loading…" : "Load more conversations"}</Button></div>}
+        {hasMore && <div className="p-3 text-center"><Button type="button" variant="ghost" onClick={onLoadMore} disabled={loadingMore} className="text-primary">{loadingMore ? "Loading…" : "Load more conversations"}</Button></div>}
       </div>
     </div>
   );
@@ -660,16 +660,16 @@ export default function MessagesPage({ onNavigate }: { onNavigate?: (page: strin
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <div className="w-20 h-20 rounded-full border-2 border-gray-700 flex items-center justify-center mx-auto mb-4">
-                <Send className="h-8 w-8 text-gray-600" />
+              <div className="w-20 h-20 rounded-full border-2 border-border flex items-center justify-center mx-auto mb-4">
+                <Send className="h-8 w-8 text-text-muted" />
               </div>
-              <h2 className="text-xl font-bold text-white mb-2">Select a message</h2>
-              <p className="text-gray-500 text-sm mb-6 max-w-xs">
+              <h2 className="text-xl font-bold text-text mb-2">Select a message</h2>
+              <p className="text-text-muted text-sm mb-6 max-w-xs">
                 Choose from your existing conversations or start a new one.
               </p>
               <button
                 onClick={() => setShowNewMsg(true)}
-                className="px-5 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-full text-sm transition-colors"
+                className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-on-primary font-bold rounded-full text-sm transition-colors"
               >
                 New message
               </button>

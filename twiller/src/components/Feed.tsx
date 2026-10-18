@@ -375,14 +375,14 @@ const Feed = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
                   onClick={loadMore}
                   disabled={loadingMore}
                   aria-busy={loadingMore}
-                  className="text-blue-400 hover:underline text-sm disabled:opacity-50"
+                  className="text-primary hover:underline text-sm disabled:opacity-50"
                 >
                   {loadingMore ? "Loading..." : "Load more"}
                 </button>
               </div>
             )}
             {!hasMore && tweets.length > 0 && (
-              <div className="py-8 text-center text-gray-600 text-sm">
+              <div className="py-8 text-center text-text-muted text-sm">
                 You&apos;re all caught up!
               </div>
             )}

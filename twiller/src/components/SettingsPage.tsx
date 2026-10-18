@@ -118,8 +118,8 @@ export default function SettingsPage({ onNavigate }: { onNavigate?: (page: strin
       {/* Logout confirm dialog */}
       {confirmLogout && <ConfirmLogoutDialog onClose={() => setConfirmLogout(false)} onConfirm={() => { void logout(); }} />}
 
-      <div className="sticky top-0 bg-black/90 backdrop-blur-md border-b border-gray-800 z-10 px-4 py-3">
-        <h1 className="text-xl font-bold text-white">Settings</h1>
+      <div className="sticky top-0 bg-bg/90 backdrop-blur-md border-b border-border z-10 px-4 py-3">
+        <h1 className="text-xl font-bold text-text">Settings</h1>
       </div>
 
       {/* User card */}
@@ -128,7 +128,7 @@ export default function SettingsPage({ onNavigate }: { onNavigate?: (page: strin
           role="button"
           tabIndex={0}
           aria-label={`View profile for ${user.displayName || user.username}`}
-          className="flex w-full items-center gap-3 p-4 border-b border-gray-800 text-left hover:bg-gray-950/50 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+          className="flex w-full items-center gap-3 p-4 border-b border-border text-left hover:bg-surface-hover transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
           onClick={() => onNavigate?.("profile")}
           onKeyDown={event => {
             if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onNavigate?.("profile"); }
@@ -136,34 +136,34 @@ export default function SettingsPage({ onNavigate }: { onNavigate?: (page: strin
         >
           <Avatar className="h-14 w-14">
             <AvatarImage src={user.avatar || undefined} alt="" />
-            <AvatarFallback aria-hidden="true" className="bg-gray-800 text-white text-xl">
+            <AvatarFallback aria-hidden="true" className="bg-surface-hover text-text text-xl">
               {user.displayName?.[0]}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <div className="text-white font-bold">{user.displayName}</div>
-            <div className="text-gray-500 text-sm">@{user.username}</div>
-            <div className="text-gray-500 text-xs">{user.email}</div>
+            <div className="text-text font-bold">{user.displayName}</div>
+            <div className="text-text-muted text-sm">@{user.username}</div>
+            <div className="text-text-muted text-xs">{user.email}</div>
           </div>
-          <ChevronRight className="h-5 w-5 text-gray-600" />
+          <ChevronRight className="h-5 w-5 text-text-muted" />
         </div>
       )}
 
-      <section aria-labelledby="appearance-heading" className="border-b border-gray-800 px-4 py-4">
-        <h2 id="appearance-heading" className="mb-3 text-base font-bold text-blue-400">Appearance</h2>
-        <label htmlFor="theme-preference" className="mb-2 block text-sm font-semibold text-white">Theme</label>
-        <p className="mb-3 text-sm text-gray-500">Choose light or dark, or follow your device setting.</p>
-        <select id="theme-preference" value={preference} onChange={event => setPreference(event.target.value as ThemePreference)} className="min-h-11 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 sm:max-w-xs">
+      <section aria-labelledby="appearance-heading" className="border-b border-border px-4 py-4">
+        <h2 id="appearance-heading" className="mb-3 text-base font-bold text-primary">Appearance</h2>
+        <label htmlFor="theme-preference" className="mb-2 block text-sm font-semibold text-text">Theme</label>
+        <p className="mb-3 text-sm text-text-muted">Choose light or dark, or follow your device setting.</p>
+        <select id="theme-preference" value={preference} onChange={event => setPreference(event.target.value as ThemePreference)} className="min-h-11 w-full rounded-lg border border-border bg-surface px-3 text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary sm:max-w-xs">
           <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
         </select>
       </section>
 
-      <section aria-labelledby="help-heading" className="border-b border-gray-800 px-4 py-4">
-        <h2 id="help-heading" className="mb-3 text-base font-bold text-blue-400">Quick answers</h2>
-        <div className="divide-y divide-gray-800 rounded-lg border border-gray-800">
+      <section aria-labelledby="help-heading" className="border-b border-border px-4 py-4">
+        <h2 id="help-heading" className="mb-3 text-base font-bold text-primary">Quick answers</h2>
+        <div className="divide-y divide-border rounded-lg border border-border">
           {frequentlyAsked.map(item => <details key={item.question} className="group px-4 py-3">
-            <summary className="cursor-pointer list-none pr-6 font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 [&::-webkit-details-marker]:hidden">{item.question}<span aria-hidden="true" className="float-right text-gray-500 group-open:rotate-45">+</span></summary>
-            <p className="pt-3 text-sm leading-6 text-gray-400">{item.answer}</p>
+            <summary className="cursor-pointer list-none pr-6 font-semibold text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary [&::-webkit-details-marker]:hidden">{item.question}<span aria-hidden="true" className="float-right text-text-muted group-open:rotate-45">+</span></summary>
+            <p className="pt-3 text-sm leading-6 text-text-muted">{item.answer}</p>
           </details>)}
         </div>
       </section>
@@ -171,24 +171,24 @@ export default function SettingsPage({ onNavigate }: { onNavigate?: (page: strin
       {/* Settings sections */}
       {sections.map((section) => (
         <div key={section.heading}>
-          <div className="px-4 py-3 bg-black">
-            <h2 className="text-base font-bold text-blue-400">{section.heading}</h2>
+          <div className="px-4 py-3 bg-bg">
+            <h2 className="text-base font-bold text-primary">{section.heading}</h2>
           </div>
           {section.items.map((item) => {
-            const className = `w-full flex items-center gap-4 px-4 py-4 border-b border-gray-800 transition-colors text-left ${item.disabled ? "cursor-not-allowed opacity-60" : "hover:bg-gray-950/50"} ${item.danger ? "text-red-400 hover:bg-red-900/10" : ""}`;
+            const className = `w-full flex items-center gap-4 px-4 py-4 border-b border-border transition-colors text-left ${item.disabled ? "cursor-not-allowed opacity-60" : "hover:bg-surface-hover"} ${item.danger ? "text-error hover:bg-error/10" : ""}`;
             const contents = <>
-              <div className={`flex-shrink-0 ${item.danger ? "text-red-400" : "text-gray-400"}`}>
+              <div className={`flex-shrink-0 ${item.danger ? "text-error" : "text-text-muted"}`}>
                 {item.icon}
               </div>
               <div className="flex-1 min-w-0">
-                <div className={`font-medium ${item.danger ? "text-red-400" : "text-white"}`}>
+                <div className={`font-medium ${item.danger ? "text-error" : "text-text"}`}>
                   {item.label}
                 </div>
                 {item.description && (
-                  <div className="text-gray-500 text-sm">{item.description}</div>
+                  <div className="text-text-muted text-sm">{item.description}</div>
                 )}
               </div>
-              {!item.danger && !item.disabled && <ChevronRight className="h-5 w-5 text-gray-600 flex-shrink-0" />}
+              {!item.danger && !item.disabled && <ChevronRight className="h-5 w-5 text-text-muted flex-shrink-0" />}
             </>;
             if (item.href) return <Link key={item.label} href={item.href} className={className}>{contents}</Link>;
             return <button key={item.label} type="button" onClick={item.action} disabled={item.disabled} className={className}>{contents}</button>;
@@ -196,7 +196,7 @@ export default function SettingsPage({ onNavigate }: { onNavigate?: (page: strin
         </div>
       ))}
 
-      <div className="p-6 text-center text-gray-600 text-xs space-y-1">
+      <div className="p-6 text-center text-text-muted text-xs space-y-1">
         <p>Twiller © 2025</p>
         <p>Built with ❤️</p>
       </div>

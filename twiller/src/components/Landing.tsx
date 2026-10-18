@@ -26,21 +26,21 @@ export default function LandingPage({ onNavigate }: { onNavigate?: (page: string
   }
   if (isDemoMode) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center px-6">
+      <div className="min-h-screen bg-bg text-text flex items-center justify-center px-6">
         <div className="w-full max-w-md text-center space-y-6">
-          <TwitterLogo size="xl" className="text-white mx-auto" />
-          <h1 className="text-4xl font-bold">Discover Twiller locally</h1>
-          <p className="text-gray-300">This uses a sample account and browser-only data. Google sign-in, email, uploads, and payments are not connected.</p>
-          <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-full h-12" onClick={() => void startDemoSession()}>
+          <TwitterLogo size="xl" className="text-primary mx-auto" />
+          <h1 className="text-4xl font-bold text-text">Discover Twiller locally</h1>
+          <p className="text-text-muted">This uses a sample account and browser-only data. Google sign-in, email, uploads, and payments are not connected.</p>
+          <Button className="w-full bg-primary hover:bg-primary-hover text-on-primary font-semibold rounded-full h-12" onClick={() => void startDemoSession()}>
             Enter local demo
           </Button>
-          <p className="text-xs text-gray-500">Demo changes stay in this browser and are separate from real accounts.</p>
+          <p className="text-xs text-text-muted">Demo changes stay in this browser and are separate from real accounts.</p>
         </div>
       </div>
     );
   }
   return (
-    <div className="twiller-landing min-h-screen bg-black text-white flex">
+    <div className="twiller-landing min-h-screen bg-bg text-text flex">
       {/* Left side - Logo */}
       <div className="hidden lg:flex lg:flex-1 items-center justify-center">
         <div className="twiller-landing-brand"><TwitterLogo size="xl" wordmark /><p>Conversations connect us.</p></div>
@@ -48,7 +48,7 @@ export default function LandingPage({ onNavigate }: { onNavigate?: (page: string
       {/* Right side - Content */}
       <div className="flex-1 lg:flex-1 flex flex-col justify-center px-8 lg:px-16 max-w-lg lg:max-w-2xl">
         <div className="lg:hidden mb-8 text-center">
-          <TwitterLogo size="xl" className="text-white mx-auto" />
+          <TwitterLogo size="xl" className="text-primary mx-auto" />
         </div>
 
         <div className="space-y-8">
@@ -60,10 +60,10 @@ export default function LandingPage({ onNavigate }: { onNavigate?: (page: string
           </div>
 
           <div className="space-y-4 max-w-xs">
-            {authError && <div role="alert" className="text-red-400 text-sm">{authError}<Button type="button" variant="link" onClick={() => void retrySession()}>Retry</Button></div>}
+            {authError && <div role="alert" className="text-error text-sm">{authError}<Button type="button" variant="link" onClick={() => void retrySession()}>Retry</Button></div>}
             <Button
               variant="outline"
-              className="w-full py-3 rounded-full border-gray-600 bg-black  text-white font-semibold text-base h-12"
+              className="w-full py-3 rounded-full border-border bg-surface hover:bg-surface-hover text-text font-semibold text-base h-12"
               onClick={async () => {
                 setGoogleError("");
                 try {
@@ -96,7 +96,7 @@ export default function LandingPage({ onNavigate }: { onNavigate?: (page: string
 
             <Button
               variant="outline"
-              className="w-full py-3 rounded-full border-gray-600  bg-black text-gray-500 font-semibold text-base h-12 cursor-not-allowed opacity-50"
+              className="w-full py-3 rounded-full border-border bg-surface text-text-muted font-semibold text-base h-12 cursor-not-allowed opacity-50"
               disabled
               title="Apple Sign In is not available"
             >
@@ -112,35 +112,35 @@ export default function LandingPage({ onNavigate }: { onNavigate?: (page: string
 
             <div className="relative">
               {googleError && (
-                <p className="text-red-400 text-sm text-center mb-2">{googleError}</p>
+                <p className="text-error text-sm text-center mb-2">{googleError}</p>
               )}
               <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-gray-600" />
+                <span className="w-full border-t border-border" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-black px-2 text-gray-400">or</span>
+                <span className="bg-bg px-2 text-text-muted">or</span>
               </div>
             </div>
             <Button
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 rounded-full text-base h-12"
+              className="w-full bg-primary hover:bg-primary-hover text-on-primary font-semibold py-3 rounded-full text-base h-12"
               onClick={() => openAuthModal("signup")}
             >
               Create account
             </Button>
-            <p className="text-xs text-gray-400 leading-relaxed">
+            <p className="text-xs text-text-muted leading-relaxed">
               By signing up, you agree to the{" "}
-              <a href="/terms" className="text-blue-400 hover:underline">Terms of Service</a>{" "}
+              <a href="/terms" className="text-primary hover:underline">Terms of Service</a>{" "}
               and{" "}
-              <a href="/privacy" className="text-blue-400 hover:underline">Privacy Policy</a>
+              <a href="/privacy" className="text-primary hover:underline">Privacy Policy</a>
               , including{" "}
-              <a href="/cookies" className="text-blue-400 hover:underline">Cookie Use</a>.
+              <a href="/cookies" className="text-primary hover:underline">Cookie Use</a>.
             </p>
           </div>
           <div className="space-y-5">
             <p className="text-lg font-bold">Already have an account?</p>
             <Button
               variant="outline"
-              className="w-full max-w-xs py-3 rounded-full border-gray-600 hover:bg-gray-900 text-blue-400 font-semibold text-base h-12"
+              className="w-full max-w-xs py-3 rounded-full border-border hover:bg-surface-hover text-primary font-semibold text-base h-12"
               onClick={() => openAuthModal("login")}
             >
               Log in

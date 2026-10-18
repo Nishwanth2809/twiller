@@ -56,22 +56,22 @@ export default function UserListPage({ type }: { type: "followers" | "following"
     } finally { setFollowPending(null); }
   };
 
-  return <div className="min-h-screen">
-    <header className="sticky top-0 z-10 flex items-center gap-4 border-b border-gray-800 bg-black/90 px-4 py-3 backdrop-blur-md">
-      <button type="button" aria-label="Go back" onClick={() => window.history.length > 1 ? router.back() : router.push(`/${encodeURIComponent(username)}`)} className="rounded-full p-2 text-white hover:bg-gray-900"><ArrowLeft className="h-5 w-5" /></button>
-      <div><h1 className="text-xl font-bold text-white">{type === "followers" ? "Followers" : "Following"}</h1><p className="text-sm text-gray-500">@{username}</p></div>
+  return <div className="min-h-screen bg-bg text-text">
+    <header className="sticky top-0 z-10 flex items-center gap-4 border-b border-border bg-surface/90 px-4 py-3 backdrop-blur-md">
+      <button type="button" aria-label="Go back" onClick={() => window.history.length > 1 ? router.back() : router.push(`/${encodeURIComponent(username)}`)} className="rounded-full p-2 text-text hover:bg-surface-hover"><ArrowLeft className="h-5 w-5" /></button>
+      <div><h1 className="text-xl font-bold text-text">{type === "followers" ? "Followers" : "Following"}</h1><p className="text-sm text-text-muted">@{username}</p></div>
     </header>
-    {followError && <div role="alert" className="mx-4 mt-4 rounded-lg border border-red-900 bg-red-950/40 p-3 text-sm text-red-300">{followError}</div>}
-    {error ? <div role="alert" className="p-8 text-center text-red-400">Couldn’t load this list. <button type="button" onClick={() => void load()} className="underline">Retry</button></div>
+    {followError && <div role="alert" className="mx-4 mt-4 rounded-lg border border-error/30 bg-error/10 p-3 text-sm text-error">{followError}</div>}
+    {error ? <div role="alert" className="p-8 text-center text-error">Couldn’t load this list. <button type="button" onClick={() => void load()} className="underline">Retry</button></div>
       : loading ? <RowSkeleton count={3} />
-        : !items.length ? <div className="px-5 py-16 text-center"><h2 className="text-xl font-bold text-white">No {type} yet</h2><p className="mt-2 text-sm text-gray-500">This list will appear here when it has people.</p></div>
-          : <div className="divide-y divide-gray-800">{items.map(person => <div key={person._id} className="flex items-center gap-3 p-4 hover:bg-gray-950">
-            <Link href={`/${encodeURIComponent(person.username)}`} className="flex min-w-0 flex-1 items-center gap-3 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">
-              <Avatar className="h-12 w-12 shrink-0"><AvatarImage src={person.avatar || undefined} alt="" /><AvatarFallback className="bg-gray-800 text-white">{person.displayName?.[0] || "?"}</AvatarFallback></Avatar>
-              <span className="min-w-0"><span className="block truncate font-bold text-white">{person.displayName}</span><span className="block truncate text-sm text-gray-500">@{person.username}</span>{person.bio && <span className="mt-1 block line-clamp-2 text-sm text-gray-400">{person.bio}</span>}</span>
+        : !items.length ? <div className="px-5 py-16 text-center"><h2 className="text-xl font-bold text-text">No {type} yet</h2><p className="mt-2 text-sm text-text-muted">This list will appear here when it has people.</p></div>
+          : <div className="divide-y divide-border">{items.map(person => <div key={person._id} className="flex items-center gap-3 p-4 hover:bg-surface-hover">
+            <Link href={`/${encodeURIComponent(person.username)}`} className="flex min-w-0 flex-1 items-center gap-3 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
+              <Avatar className="h-12 w-12 shrink-0"><AvatarImage src={person.avatar || undefined} alt="" /><AvatarFallback className="bg-primary-soft text-primary">{person.displayName?.[0] || "?"}</AvatarFallback></Avatar>
+              <span className="min-w-0"><span className="block truncate font-bold text-text">{person.displayName}</span><span className="block truncate text-sm text-text-muted">@{person.username}</span>{person.bio && <span className="mt-1 block line-clamp-2 text-sm text-text-muted">{person.bio}</span>}</span>
             </Link>
-            {user?._id && user._id !== person._id && <button type="button" disabled={followPending !== null} onClick={() => void toggleFollow(person)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-50 ${isFollowing(person) ? "border border-gray-600 text-white hover:border-red-500 hover:text-red-400" : "bg-white text-black hover:bg-gray-200"}`}>{followPending === person._id ? "Saving…" : isFollowing(person) ? "Following" : "Follow"}</button>}
+            {user?._id && user._id !== person._id && <button type="button" disabled={followPending !== null} onClick={() => void toggleFollow(person)} className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold disabled:opacity-50 transition-colors ${isFollowing(person) ? "border border-border text-text hover:border-error hover:text-error" : "bg-primary text-on-primary hover:bg-primary-hover"}`}>{followPending === person._id ? "Saving…" : isFollowing(person) ? "Following" : "Follow"}</button>}
           </div>)}</div>}
-    {hasMore && !loading && <div className="p-4 text-center"><button type="button" disabled={loadingMore} onClick={() => void load(cursor, true)} className="rounded-full border border-gray-700 px-5 py-2 text-sm text-white disabled:opacity-50">{loadingMore ? "Loading…" : "Load more"}</button></div>}
+    {hasMore && !loading && <div className="p-4 text-center"><button type="button" disabled={loadingMore} onClick={() => void load(cursor, true)} className="rounded-full border border-border px-5 py-2 text-sm text-text hover:bg-surface-hover disabled:opacity-50">{loadingMore ? "Loading…" : "Load more"}</button></div>}
   </div>;
 }

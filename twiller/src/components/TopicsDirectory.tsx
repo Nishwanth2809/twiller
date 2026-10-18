@@ -32,19 +32,19 @@ export default function TopicsDirectory({ query = "" }: { query?: string }) {
     return () => { clearTimeout(timer); lifecycle.current++; };
   }, [load, user?._id]);
   const update = (topic: Topic) => setTopics(previous => followedOnly && !topic.following ? previous.filter(item => item._id !== topic._id) : previous.map(item => item._id === topic._id ? topic : item));
-  return <section className="twiller-topics-directory border-b border-gray-800 p-4" aria-labelledby={`${id}-heading`}>
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 id={`${id}-heading`} className="text-lg font-semibold">Topics</h2>
+  return <section className="twiller-topics-directory border-b border-border p-4" aria-labelledby={`${id}-heading`}>
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 id={`${id}-heading`} className="text-lg font-semibold text-text">Topics</h2>
       {!query && user && <div role="group" aria-label="Topic list"><button type="button" className="twiller-topic-filter" aria-pressed={!mine} onClick={() => setMine(false)}>All topics</button><button type="button" className="twiller-topic-filter" aria-pressed={mine} onClick={() => setMine(true)}>My topics</button></div>}
     </div>
-    {!query && !followedOnly && <label className="mb-3 block text-sm">Search topics<input className="mt-1 w-full border border-gray-800 bg-gray-900 p-2 text-white" maxLength={80} value={filter} onChange={event => setFilter(event.target.value)} /></label>}
-    {error && <p role="alert" className="mb-3 text-sm text-red-400">{error} <button type="button" className="min-h-11 underline" onClick={() => { if (!busy.current) void load(topics.length ? cursor : null, topics.length === 0, generation.current); }}>Retry topics</button></p>}
+    {!query && !followedOnly && <label className="mb-3 block text-sm text-text">Search topics<input className="mt-1 w-full border border-border bg-surface p-2 text-text" maxLength={80} value={filter} onChange={event => setFilter(event.target.value)} /></label>}
+    {error && <p role="alert" className="mb-3 text-sm text-error">{error} <button type="button" className="min-h-11 underline" onClick={() => { if (!busy.current) void load(topics.length ? cursor : null, topics.length === 0, generation.current); }}>Retry topics</button></p>}
     {loading && !topics.length ? <RowSkeleton /> : <>
-      {topics.map(topic => <div key={topic._id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-gray-800 py-3"><div className="min-w-0 flex-1">
-        {topic.status === "active" ? <Link className="inline-flex min-h-11 items-center font-semibold text-blue-400" href={`/topic/${encodeURIComponent(topic.slug)}`}>{topic.name}</Link> : <p className="font-semibold">{topic.name} · Unavailable</p>}
-        <p className="text-sm text-gray-500 break-words">{topic.description}</p></div><TopicFollowButton key={`${user?._id || "public"}:${topic._id}`} topic={topic} onChange={update} />
+      {topics.map(topic => <div key={topic._id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-border py-3"><div className="min-w-0 flex-1">
+        {topic.status === "active" ? <Link className="inline-flex min-h-11 items-center font-semibold text-primary" href={`/topic/${encodeURIComponent(topic.slug)}`}>{topic.name}</Link> : <p className="font-semibold text-text">{topic.name} · Unavailable</p>}
+        <p className="text-sm text-text-muted break-words">{topic.description}</p></div><TopicFollowButton key={`${user?._id || "public"}:${topic._id}`} topic={topic} onChange={update} />
       </div>)}
-      {!loading && !error && !topics.length && <p className="py-4 text-sm text-gray-500">{followedOnly ? "You haven’t followed any topics yet." : term ? "No matching topics." : "No topics available yet."}</p>}
-      {hasMore && <button type="button" disabled={loading} className="min-h-11 text-sm text-blue-400 hover:underline" onClick={() => { if (!busy.current && cursor) void load(cursor, false, generation.current); }}>{loading ? "Loading topics…" : "Load more topics"}</button>}
+      {!loading && !error && !topics.length && <p className="py-4 text-sm text-text-muted">{followedOnly ? "You haven’t followed any topics yet." : term ? "No matching topics." : "No topics available yet."}</p>}
+      {hasMore && <button type="button" disabled={loading} className="min-h-11 text-sm text-primary hover:underline" onClick={() => { if (!busy.current && cursor) void load(cursor, false, generation.current); }}>{loading ? "Loading topics…" : "Load more topics"}</button>}
     </>}
   </section>;
 }

@@ -133,12 +133,12 @@ export default function RightSidebar({ onNavigate }: RightSidebarProps) {
   return (
     <div className="flex w-full flex-col gap-4">
       <section className="twiller-discovery-card twiller-pulse-card" aria-labelledby="sidebar-pulse-title">
-        <div className="mb-3 flex items-center justify-between"><h2 id="sidebar-pulse-title" className="font-semibold">Pulse</h2><Activity aria-hidden="true" className="h-4 w-4 text-violet-400" /></div>
-        <p className="mb-3 text-xs text-gray-500">Hashtag activity this week</p>
-        {pulseState === "loading" ? <p role="status" className="text-sm text-gray-500">Loading Pulse…</p>
-          : pulseState === "error" ? <p className="text-sm text-gray-500">Pulse is unavailable. <button type="button" className="text-blue-400 underline" onClick={() => onNavigate?.("explore")}>Open Discover</button></p>
-          : pulse.length ? <ul className="space-y-3">{pulse.slice(0, 5).map(item => <li key={item.tag}><Link className="block min-h-11 w-full rounded-lg text-left text-sm hover:bg-gray-900" href={`/search?q=${encodeURIComponent("#" + item.tag)}`}><span className="block truncate font-medium">#{item.tag}</span><span className="text-xs text-gray-500">{item.count} recent {item.count === 1 ? "post" : "posts"}</span></Link></li>)}</ul>
-          : <p className="text-sm text-gray-500">Nothing in Pulse yet. Recent hashtag activity will appear here.</p>}
+        <div className="mb-3 flex items-center justify-between"><h2 id="sidebar-pulse-title" className="font-semibold text-text">Pulse</h2><Activity aria-hidden="true" className="h-4 w-4 text-primary" /></div>
+        <p className="mb-3 text-xs text-text-muted">Hashtag activity this week</p>
+        {pulseState === "loading" ? <p role="status" className="text-sm text-text-muted">Loading Pulse…</p>
+          : pulseState === "error" ? <p className="text-sm text-text-muted">Pulse is unavailable. <button type="button" className="text-primary underline" onClick={() => onNavigate?.("explore")}>Open Discover</button></p>
+          : pulse.length ? <ul className="space-y-3">{pulse.slice(0, 5).map(item => <li key={item.tag}><Link className="block min-h-11 w-full rounded-lg text-left text-sm hover:bg-surface-hover" href={`/search?q=${encodeURIComponent("#" + item.tag)}`}><span className="block truncate font-medium text-text">#{item.tag}</span><span className="text-xs text-text-muted">{item.count} recent {item.count === 1 ? "post" : "posts"}</span></Link></li>)}</ul>
+          : <p className="text-sm text-text-muted">Nothing in Pulse yet. Recent hashtag activity will appear here.</p>}
       </section>
       {/* Premium Plan Card */}
       <div
@@ -151,7 +151,7 @@ export default function RightSidebar({ onNavigate }: RightSidebarProps) {
         {/* Header row */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-2">
-            <div className={`p-1.5 rounded-lg bg-black/30`}>
+            <div className={`p-1.5 rounded-lg bg-surface-hover/30`}>
               <Crown className={`h-4 w-4 ${planStyle.icon}`} />
             </div>
             <span className={`twiller-plan-label font-bold text-base ${planStyle.accent}`}>
@@ -166,7 +166,7 @@ export default function RightSidebar({ onNavigate }: RightSidebarProps) {
         </div>
 
         {/* Description */}
-        <p className="text-gray-400 text-sm mb-4 leading-relaxed">
+        <p className="text-text-muted text-sm mb-4 leading-relaxed">
           {plan === "free"
             ? "View plans for a higher posting allowance."
             : plan === "gold"
@@ -216,8 +216,8 @@ export default function RightSidebar({ onNavigate }: RightSidebarProps) {
                       aria-pressed={isFollowing}
                       className={`twiller-follow-button ml-3 flex-shrink-0 rounded-full px-4 font-semibold text-sm transition-all ${
                         isFollowing
-                          ? "border-border text-text hover:border-rose-500 hover:text-rose-500 hover:bg-rose-500/10"
-                          : "bg-primary text-white hover:bg-primary-hover active:scale-95 shadow-xs"
+                          ? "border-border text-text hover:border-error hover:text-error hover:bg-error/10"
+                          : "bg-primary text-on-primary hover:bg-primary-hover active:scale-95 shadow-xs"
                       }`}
                       onClick={() => handleFollow(su._id?.toString())}
                     >
@@ -232,11 +232,11 @@ export default function RightSidebar({ onNavigate }: RightSidebarProps) {
       )}
 
       {/* Footer */}
-      <div className="twiller-sidebar-footer text-xs text-gray-600 space-y-1 pb-4">
+      <div className="twiller-sidebar-footer text-xs text-text-muted space-y-1 pb-4">
         <div className="flex flex-wrap gap-x-3 gap-y-1">
-          <a href="/terms" className="hover:underline hover:text-gray-400 transition-colors">Terms of Service</a>
-          <a href="/privacy" className="hover:underline hover:text-gray-400 transition-colors">Privacy Policy</a>
-          <a href="/cookies" className="hover:underline hover:text-gray-400 transition-colors">Cookie Policy</a>
+          <a href="/terms" className="hover:underline hover:text-text transition-colors">Terms of Service</a>
+          <a href="/privacy" className="hover:underline hover:text-text transition-colors">Privacy Policy</a>
+          <a href="/cookies" className="hover:underline hover:text-text transition-colors">Cookie Policy</a>
         </div>
         <div>© 2025 Twiller</div>
       </div>

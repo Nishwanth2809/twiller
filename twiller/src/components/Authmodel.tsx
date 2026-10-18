@@ -125,33 +125,33 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
   if (otpPendingEmail) {
     return (
       <AccessibleDialog open onClose={closeModal} labelledBy="otp-dialog-title">
-        <Card className="w-full max-w-md bg-black border-gray-800 text-white">
+        <Card className="w-full max-w-md bg-surface border-border text-text">
           <CardHeader className="relative pb-6">
             <Button
               variant="ghost"
               size="icon"
               aria-label="Close verification dialog"
-              className="absolute right-4 top-4 text-white hover:bg-gray-900"
+              className="absolute right-4 top-4 text-text hover:bg-surface-hover"
               onClick={closeModal}
             >
               <X className="h-5 w-5" />
             </Button>
             <div className="text-center">
               <div className="mb-6 flex justify-center">
-                <TwitterLogo size="xl" className="text-white" />
+                <TwitterLogo size="xl" className="text-primary" />
               </div>
               <CardTitle id="otp-dialog-title" className="text-2xl font-bold">Verification Required</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            <p id="otp-help" className="text-center text-gray-400">
+            <p id="otp-help" className="text-center text-text-muted">
               Enter the login code sent to your email to continue.
             </p>
-            {(errors.general || authError) && <p id="otp-error" role="alert" className="text-red-400 text-sm">{errors.general || authError}</p>}
+            {(errors.general || authError) && <p id="otp-error" role="alert" className="text-error text-sm">{errors.general || authError}</p>}
             <Button type="button" variant="link" disabled={isLoading} onClick={async () => { setErrors({}); try { await retrySession(); } catch { setErrors({ general: "Could not resend code. Please retry." }); } }}>Retry / resend expired code</Button>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="login-otp" className="text-white">Enter login code</Label>
+                <Label htmlFor="login-otp" className="text-text">Enter login code</Label>
                 <Input
                   type="text"
                   id="login-otp"
@@ -163,7 +163,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                   aria-describedby={errors.general || authError ? "otp-help otp-error" : "otp-help"}
                   value={otp}
                   onChange={(e) => setOtp(e.target.value)}
-                  className="bg-transparent border-gray-600 text-white placeholder-gray-400 focus:border-blue-500 text-center text-lg tracking-widest"
+                  className="bg-transparent border-border text-text placeholder-text-muted focus:border-primary text-center text-lg tracking-widest"
                   maxLength={6}
                   disabled={isLoading}
                 />
@@ -177,7 +177,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                     setErrors({ general: err instanceof Error ? err.message : 'Invalid OTP. Please try again.' });
                   }
                 }}
-                className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 rounded-full text-lg"
+                className="w-full bg-primary hover:bg-primary-hover text-on-primary font-semibold py-3 rounded-full text-lg"
                 disabled={isLoading || otp.length < 6}
               >
                 {isLoading ? <LoadingSpinner size="sm" /> : "Verify OTP"}
@@ -191,20 +191,20 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
 
   return (
     <AccessibleDialog open={isOpen} onClose={closeModal} labelledBy="auth-dialog-title">
-      <Card className="w-full max-w-md bg-black border-gray-800 text-white">
+      <Card className="w-full max-w-md bg-surface border-border text-text">
         <CardHeader className="relative pb-6">
           <Button
             variant="ghost"
             size="icon"
             aria-label="Close sign-in dialog"
-            className="absolute right-4 top-4 text-white hover:bg-gray-900"
+            className="absolute right-4 top-4 text-text hover:bg-surface-hover"
             onClick={closeModal}
           >
             <X className="h-5 w-5" />
           </Button>
           <div className="text-center">
             <div className="mb-6 flex justify-center">
-              <TwitterLogo size="xl" className="text-white" />
+              <TwitterLogo size="xl" className="text-primary" />
             </div>
             <CardTitle id="auth-dialog-title" className="text-2xl font-bold">
               {mode === 'login' ? 'Sign in to Twiller' : 'Create your account'}
@@ -214,7 +214,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
 
         <CardContent className="space-y-6">
           {(errors.general || authError) && (
-            <div role="alert" className="bg-red-900/20 border border-red-800 rounded-lg p-3 text-red-400 text-sm">
+            <div role="alert" className="bg-error/10 border border-error/30 rounded-lg p-3 text-error text-sm">
               {errors.general || authError}
             </div>
           )}
@@ -223,9 +223,9 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
             {mode === 'signup' && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="displayName" className="text-white">Display Name</Label>
+                  <Label htmlFor="displayName" className="text-text">Display Name</Label>
                   <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-muted h-5 w-5" />
                     <Input
                       id="displayName"
                       autoFocus={mode === 'signup'}
@@ -237,19 +237,19 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                       placeholder="Your display name"
                       value={formData.displayName}
                       onChange={(e) => handleInputChange('displayName', e.target.value)}
-                      className="pl-10 bg-transparent border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
+                      className="pl-10 bg-transparent border-border text-text placeholder-text-muted focus:border-primary"
                       disabled={isLoading}
                     />
                   </div>
                   {errors.displayName && (
-                    <p id="displayName-error" aria-live="polite" className="text-red-400 text-sm">{errors.displayName}</p>
+                    <p id="displayName-error" aria-live="polite" className="text-error text-sm">{errors.displayName}</p>
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="username" className="text-white">Username</Label>
+                  <Label htmlFor="username" className="text-text">Username</Label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">@</span>
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-muted">@</span>
                     <Input
                       id="username"
                       maxLength={50}
@@ -260,21 +260,21 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                       placeholder="username"
                       value={formData.username}
                       onChange={(e) => handleInputChange('username', e.target.value)}
-                      className="pl-8 bg-transparent border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
+                      className="pl-8 bg-transparent border-border text-text placeholder-text-muted focus:border-primary"
                       disabled={isLoading}
                     />
                   </div>
                   {errors.username && (
-                    <p id="username-error" aria-live="polite" className="text-red-400 text-sm">{errors.username}</p>
+                    <p id="username-error" aria-live="polite" className="text-error text-sm">{errors.username}</p>
                   )}
                 </div>
               </>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-white">Email</Label>
+              <Label htmlFor="email" className="text-text">Email</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-muted h-5 w-5" />
                 <Input
                   id="email"
                   maxLength={254}
@@ -287,19 +287,19 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                   placeholder="Enter your email"
                   value={formData.email}
                   onChange={(e) => handleInputChange('email', e.target.value)}
-                  className="pl-10 bg-transparent border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
+                  className="pl-10 bg-transparent border-border text-text placeholder-text-muted focus:border-primary"
                   disabled={isLoading}
                 />
               </div>
               {errors.email && (
-                <p id="email-error" aria-live="polite" className="text-red-400 text-sm">{errors.email}</p>
+                <p id="email-error" aria-live="polite" className="text-error text-sm">{errors.email}</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-white">Password</Label>
+              <Label htmlFor="password" className="text-text">Password</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-muted h-5 w-5" />
                 <Input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
@@ -310,7 +310,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                   placeholder="Enter your password"
                   value={formData.password}
                   onChange={(e) => handleInputChange('password', e.target.value)}
-                  className="pl-10 pr-10 bg-transparent border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
+                  className="pl-10 pr-10 bg-transparent border-border text-text placeholder-text-muted focus:border-primary"
                   disabled={isLoading}
                 />
                 <Button
@@ -319,14 +319,14 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                   size="sm"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   aria-pressed={showPassword}
-                  className="absolute right-1 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                  className="absolute right-1 top-1/2 transform -translate-y-1/2 text-text-muted hover:text-text"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
               {errors.password && (
-                <p id="password-error" aria-live="polite" className="text-red-400 text-sm">{errors.password}</p>
+                <p id="password-error" aria-live="polite" className="text-error text-sm">{errors.password}</p>
               )}
             </div>
 
@@ -335,7 +335,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
                 <button
                   type="button"
                   onClick={() => { onClose(); router.push('/forgot-password'); }}
-                  className="text-blue-400 hover:text-blue-300 text-sm font-medium"
+                  className="text-primary hover:underline text-sm font-medium"
                 >
                   Forgot password?
                 </button>
@@ -344,7 +344,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
 
             <Button
               type="submit"
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 rounded-full text-lg"
+              className="w-full bg-primary hover:bg-primary-hover text-on-primary font-semibold py-3 rounded-full text-lg"
               disabled={isLoading}
             >
               {isLoading ? (
@@ -359,8 +359,8 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
           </form>
 
           <div className="relative">
-            <Separator className="bg-gray-700" />
-            <span className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black px-2 text-gray-400 text-sm">
+            <Separator className="bg-border" />
+            <span className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-surface px-2 text-text-muted text-sm">
               OR
             </span>
           </div>
@@ -370,7 +370,7 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
             <Button
               type="button"
               variant="outline"
-              className="w-full border-gray-700 bg-black text-white hover:bg-gray-900 font-semibold py-3 rounded-full h-12 flex items-center justify-center gap-3"
+              className="w-full border-border bg-surface text-text hover:bg-surface-hover font-semibold py-3 rounded-full h-12 flex items-center justify-center gap-3"
               onClick={handleGoogleSignIn}
               disabled={isLoading}
             >
@@ -383,16 +383,16 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
               {mode === 'login' ? 'Sign in with Google' : 'Sign up with Google'}
             </Button>
             {googleError && (
-              <p className="text-red-400 text-xs text-center">{googleError}</p>
+              <p className="text-error text-xs text-center">{googleError}</p>
             )}
           </div>
 
           <div className="text-center">
-            <p className="text-gray-400">
+            <p className="text-text-muted">
               {mode === 'login' ? "Don't have an account?" : "Already have an account?"}
               <Button
                 variant="link"
-                className="text-blue-400 hover:text-blue-300 font-semibold pl-1"
+                className="text-primary hover:underline font-semibold pl-1"
                 onClick={switchMode}
                 disabled={isLoading}
               >
@@ -402,13 +402,13 @@ export default function AuthModal({ isOpen, onClose, initialMode = 'login' }: Au
           </div>
 
           {mode === 'signup' && (
-            <div className="text-center text-xs text-gray-500 leading-relaxed">
+            <div className="text-center text-xs text-text-muted leading-relaxed">
               By signing up, you agree to our{' '}
-              <a href="/terms" className="text-blue-400 hover:underline">Terms of Service</a>
+              <a href="/terms" className="text-primary hover:underline">Terms of Service</a>
               {' '}and{' '}
-              <a href="/privacy" className="text-blue-400 hover:underline">Privacy Policy</a>
+              <a href="/privacy" className="text-primary hover:underline">Privacy Policy</a>
               , including{' '}
-              <a href="/cookies" className="text-blue-400 hover:underline">Cookie Use</a>.
+              <a href="/cookies" className="text-primary hover:underline">Cookie Use</a>.
             </div>
           )}
         </CardContent>

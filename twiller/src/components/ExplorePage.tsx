@@ -180,7 +180,7 @@ export default function ExplorePage({ onNavigate }: { onNavigate?: (page: string
             <h2 className="text-2xl font-bold text-text mb-2">Discover Twiller</h2>
             <p className="text-text-muted text-sm">Find conversations and people worth following. Browse recent hashtag activity.</p>
           </div>
-          {discoveryError && <div role="alert" className="mx-4 mb-4 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-500">Discover suggestions couldn’t be loaded. <button type="button" className="underline" onClick={() => setDiscoveryRetry(value => value + 1)}>Retry</button></div>}
+          {discoveryError && <div role="alert" className="mx-4 mb-4 rounded-lg border border-error/30 bg-error/10 p-3 text-sm text-error">Discover suggestions couldn’t be loaded. <button type="button" className="underline" onClick={() => setDiscoveryRetry(value => value + 1)}>Retry</button></div>}
           <section aria-labelledby="trending-heading" className="border-t border-border">
             <h2 id="trending-heading" className="px-4 py-3 text-lg font-bold text-text">Pulse</h2><p className="px-4 pb-3 text-sm text-text-muted">Hashtags used in posts this week. Counts reflect recent posts, not topic membership.</p>
             {discoveryLoading ? <div role="status" className="px-4 py-5 text-sm text-text-muted">Loading topics…</div> : topics.length ? <div className="divide-y divide-border">{topics.map(topic => <button type="button" key={topic.tag} onClick={() => handleSearch(`#${topic.tag}`)} className="block w-full px-4 py-3 text-left hover:bg-surface-hover"><span className="block font-semibold text-text">#{topic.tag}</span><span className="text-xs text-text-muted">{topic.count} recent {topic.count === 1 ? "post" : "posts"}</span></button>)}</div> : !discoveryError ? <p className="px-4 pb-5 text-sm text-text-muted">No Pulse activity yet. Topics appear when recent posts include a hashtag.</p> : null}
@@ -194,7 +194,7 @@ export default function ExplorePage({ onNavigate }: { onNavigate?: (page: string
 
       {/* Loading */}
       {query && searching && <div role="status" aria-label="Loading search results"><SearchSkeleton /></div>}
-      {query && searchError && <div role="alert" className="py-12 text-center text-rose-500">Search couldn’t be completed. <button type="button" className="underline" onClick={() => setSearchRetry(value => value + 1)}>Retry</button></div>}
+      {query && searchError && <div role="alert" className="py-12 text-center text-error">Search couldn’t be completed. <button type="button" className="underline" onClick={() => setSearchRetry(value => value + 1)}>Retry</button></div>}
 
       {/* No results */}
       {noResults && (
@@ -243,9 +243,9 @@ export default function ExplorePage({ onNavigate }: { onNavigate?: (page: string
 
           <TabsContent value="people" className="mt-0">
             {results.users.length === 0 ? (
-              <Card className="bg-black border-none">
+              <Card className="bg-surface border-none">
                 <CardContent className="py-12 text-center">
-                  <p className="text-gray-500">No people found for &ldquo;{query}&rdquo;</p>
+                  <p className="text-text-muted">No people found for &ldquo;{query}&rdquo;</p>
                 </CardContent>
               </Card>
             ) : (
@@ -257,9 +257,9 @@ export default function ExplorePage({ onNavigate }: { onNavigate?: (page: string
 
           <TabsContent value="posts" className="mt-0">
             {results.tweets.length === 0 ? (
-              <Card className="bg-black border-none">
+              <Card className="bg-surface border-none">
                 <CardContent className="py-12 text-center">
-                  <p className="text-gray-500">No posts found for &ldquo;{query}&rdquo;</p>
+                  <p className="text-text-muted">No posts found for &ldquo;{query}&rdquo;</p>
                 </CardContent>
               </Card>
             ) : (

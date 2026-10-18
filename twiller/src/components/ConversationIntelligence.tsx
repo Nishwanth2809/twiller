@@ -280,12 +280,12 @@ export default function ConversationIntelligence({
 
   if (initialLoading) {
     return (
-      <div className="border-b border-gray-800 px-4 py-3 bg-black flex items-center justify-between animate-pulse">
+      <div className="border-b border-border px-4 py-3 bg-surface flex items-center justify-between animate-pulse">
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 rounded bg-gray-800" />
-          <div className="w-40 h-4 rounded bg-gray-800" />
+          <div className="w-4 h-4 rounded bg-surface-hover" />
+          <div className="w-40 h-4 rounded bg-surface-hover" />
         </div>
-        <div className="w-20 h-7 rounded-full bg-gray-800" />
+        <div className="w-20 h-7 rounded-full bg-surface-hover" />
       </div>
     );
   }
@@ -293,8 +293,8 @@ export default function ConversationIntelligence({
   // Not enough replies: quiet understated notice without CTA
   if (status === "not_enough_replies") {
     return (
-      <aside aria-label="Conversation intelligence notice" className="border-b border-gray-800 px-4 py-2.5 bg-black flex items-center gap-2 text-xs text-gray-500">
-        <Info className="h-3.5 w-3.5 text-gray-600 shrink-0" aria-hidden="true" />
+      <aside aria-label="Conversation intelligence notice" className="border-b border-border px-4 py-2.5 bg-surface flex items-center gap-2 text-xs text-text-muted">
+        <Info className="h-3.5 w-3.5 text-text-muted shrink-0" aria-hidden="true" />
         <span>Conversation insights become available once this thread has more replies.</span>
       </aside>
     );
@@ -303,20 +303,20 @@ export default function ConversationIntelligence({
   // Status is none: compact entry control
   if (status === "none" || (!insight && status !== "available" && status !== "stale")) {
     return (
-      <section aria-label="Conversation intelligence" className="border-b border-gray-800 px-4 py-3 bg-black">
+      <section aria-label="Conversation intelligence" className="border-b border-border px-4 py-3 bg-surface">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
-            <Sparkles className="h-4 w-4 text-indigo-400 shrink-0" aria-hidden="true" />
-            <span className="text-sm font-medium text-gray-200 truncate">Understand conversation</span>
+            <Sparkles className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
+            <span className="text-sm font-medium text-text truncate">Understand conversation</span>
             {replyCount !== undefined && replyCount > 0 && (
-              <span className="text-xs text-gray-500 shrink-0">({replyCount} replies)</span>
+              <span className="text-xs text-text-muted shrink-0">({replyCount} replies)</span>
             )}
           </div>
           <Button
             type="button"
             onClick={handleGenerateOrRefresh}
             disabled={generating || inProgress}
-            className="rounded-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-800 disabled:text-gray-500 text-white text-xs font-semibold px-4 py-1.5 h-8 shrink-0 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-400"
+            className="rounded-full bg-primary hover:bg-primary-hover disabled:bg-surface-hover disabled:text-text-muted text-on-primary text-xs font-semibold px-4 py-1.5 h-8 shrink-0 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
             aria-label="Understand conversation"
           >
             {generating ? (
@@ -338,14 +338,14 @@ export default function ConversationIntelligence({
             aria-live="polite"
             className={`mt-2.5 px-3 py-2 rounded-lg text-xs flex items-center gap-2 ${
               error.isNeutral
-                ? "bg-gray-900 border border-gray-800 text-gray-300"
-                : "bg-red-950/40 border border-red-900/50 text-red-300"
+                ? "bg-surface-hover border border-border text-text"
+                : "bg-error/10 border border-error/30 text-error"
             }`}
           >
             {error.isNeutral ? (
-              <Info className="h-3.5 w-3.5 text-gray-400 shrink-0" aria-hidden="true" />
+              <Info className="h-3.5 w-3.5 text-text-muted shrink-0" aria-hidden="true" />
             ) : (
-              <AlertCircle className="h-3.5 w-3.5 text-red-400 shrink-0" aria-hidden="true" />
+              <AlertCircle className="h-3.5 w-3.5 text-error shrink-0" aria-hidden="true" />
             )}
             <span>{error.message}</span>
           </div>
@@ -360,21 +360,21 @@ export default function ConversationIntelligence({
   return (
     <section
       aria-labelledby="conversation-intelligence-heading"
-      className="border-b border-gray-800 bg-gray-950/40 p-4 transition-colors"
+      className="border-b border-border bg-surface p-4 transition-colors"
     >
       {/* Header Row */}
       <div className="flex items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
-          <Layers className="h-4 w-4 text-indigo-400 shrink-0" aria-hidden="true" />
+          <Layers className="h-4 w-4 text-primary shrink-0" aria-hidden="true" />
           <h3
             id="conversation-intelligence-heading"
-            className="text-xs font-bold uppercase tracking-wider text-indigo-300"
+            className="text-xs font-bold uppercase tracking-wider text-primary"
           >
             Conversation Intelligence
           </h3>
         </div>
         {insight?.analyzedReplyCount ? (
-          <span className="text-[11px] text-gray-500 font-medium">
+          <span className="text-[11px] text-text-muted font-medium">
             {insight.analyzedReplyCount} replies analyzed
           </span>
         ) : null}
@@ -385,11 +385,11 @@ export default function ConversationIntelligence({
         <div
           role="status"
           aria-live="polite"
-          className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-amber-950/40 border border-amber-800/50 mb-3 text-xs text-amber-200"
+          className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-warning/10 border border-warning/30 mb-3 text-xs text-warning"
         >
           <div className="flex items-center gap-2 min-w-0">
             <RefreshCw
-              className={`h-3.5 w-3.5 text-amber-400 shrink-0 ${generating ? "animate-spin" : ""}`}
+              className={`h-3.5 w-3.5 text-warning shrink-0 ${generating ? "animate-spin" : ""}`}
               aria-hidden="true"
             />
             <span className="truncate">
@@ -402,7 +402,7 @@ export default function ConversationIntelligence({
             disabled={generating}
             size="sm"
             variant="ghost"
-            className="h-7 px-3 text-xs text-amber-300 hover:text-white hover:bg-amber-900/50 font-semibold rounded-full shrink-0"
+            className="h-7 px-3 text-xs text-warning hover:text-on-primary hover:bg-warning/30 font-semibold rounded-full shrink-0"
             aria-label="Refresh analysis"
           >
             {generating ? "Refreshing..." : "Refresh analysis"}
@@ -417,15 +417,15 @@ export default function ConversationIntelligence({
           aria-live="polite"
           className={`mb-3 px-3 py-2 rounded-lg text-xs flex items-center justify-between gap-2 ${
             error.isNeutral
-              ? "bg-gray-900 border border-gray-800 text-gray-300"
-              : "bg-red-950/40 border border-red-900/50 text-red-300"
+              ? "bg-surface-hover border border-border text-text"
+              : "bg-error/10 border border-error/30 text-error"
           }`}
         >
           <div className="flex items-center gap-2">
             {error.isNeutral ? (
-              <Info className="h-3.5 w-3.5 text-gray-400 shrink-0" aria-hidden="true" />
+              <Info className="h-3.5 w-3.5 text-text-muted shrink-0" aria-hidden="true" />
             ) : (
-              <AlertCircle className="h-3.5 w-3.5 text-red-400 shrink-0" aria-hidden="true" />
+              <AlertCircle className="h-3.5 w-3.5 text-error shrink-0" aria-hidden="true" />
             )}
             <span>{error.message}</span>
           </div>
@@ -435,7 +435,7 @@ export default function ConversationIntelligence({
               size="sm"
               variant="ghost"
               onClick={handleGenerateOrRefresh}
-              className="h-6 px-2 text-[11px] text-gray-300 hover:text-white hover:bg-gray-800 rounded"
+              className="h-6 px-2 text-[11px] text-text hover:text-primary hover:bg-surface-hover rounded"
             >
               Retry
             </Button>
@@ -446,10 +446,10 @@ export default function ConversationIntelligence({
       {/* 1. Overview */}
       {insight?.overview && (
         <div className="mb-3.5">
-          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1">
+          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-text-muted mb-1">
             Overview
           </h4>
-          <p className="text-sm text-gray-200 leading-relaxed">
+          <p className="text-sm text-text leading-relaxed">
             {insight.overview}
           </p>
         </div>
@@ -458,13 +458,13 @@ export default function ConversationIntelligence({
       {/* 2. Key Points */}
       {Array.isArray(insight?.keyPoints) && insight.keyPoints.length > 0 && (
         <div className="mb-3.5">
-          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">
+          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">
             Key points
           </h4>
           <ul className="space-y-2" aria-label="Key points">
             {insight.keyPoints.map((kp, idx) => (
-              <li key={idx} className="text-sm text-gray-300 flex items-start gap-2">
-                <span className="text-indigo-400 select-none mt-1" aria-hidden="true">
+              <li key={idx} className="text-sm text-text flex items-start gap-2">
+                <span className="text-primary select-none mt-1" aria-hidden="true">
                   •
                 </span>
                 <span className="flex-1">
@@ -479,7 +479,7 @@ export default function ConversationIntelligence({
                             type="button"
                             onClick={() => handleCitationClick(String(sourceId))}
                             aria-label={`Jump to cited reply [${num}]`}
-                            className="inline-flex items-center justify-center min-w-[20px] h-[18px] px-1 text-[11px] font-mono font-medium rounded bg-indigo-950/80 border border-indigo-700/60 text-indigo-300 hover:bg-indigo-800 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-400 transition-colors"
+                            className="inline-flex items-center justify-center min-w-[20px] h-[18px] px-1 text-[11px] font-mono font-medium rounded bg-primary-soft border border-primary/30 text-primary hover:bg-primary hover:text-on-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary transition-colors"
                           >
                             [{num}]
                           </button>
@@ -497,13 +497,13 @@ export default function ConversationIntelligence({
       {/* 3. Perspectives */}
       {Array.isArray(insight?.perspectives) && insight.perspectives.length > 0 && (
         <div>
-          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">
+          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-text-muted mb-1.5">
             Perspectives
           </h4>
           <ul className="space-y-2" aria-label="Perspectives">
             {insight.perspectives.map((p, idx) => (
-              <li key={idx} className="text-sm text-gray-300 flex items-start gap-2">
-                <span className="text-violet-400 select-none mt-1" aria-hidden="true">
+              <li key={idx} className="text-sm text-text flex items-start gap-2">
+                <span className="text-accent select-none mt-1" aria-hidden="true">
                   •
                 </span>
                 <span className="flex-1">
@@ -518,7 +518,7 @@ export default function ConversationIntelligence({
                             type="button"
                             onClick={() => handleCitationClick(String(sourceId))}
                             aria-label={`Jump to cited reply [${num}]`}
-                            className="inline-flex items-center justify-center min-w-[20px] h-[18px] px-1 text-[11px] font-mono font-medium rounded bg-indigo-950/80 border border-indigo-700/60 text-indigo-300 hover:bg-indigo-800 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-400 transition-colors"
+                            className="inline-flex items-center justify-center min-w-[20px] h-[18px] px-1 text-[11px] font-mono font-medium rounded bg-primary-soft border border-primary/30 text-primary hover:bg-primary hover:text-on-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary transition-colors"
                           >
                             [{num}]
                           </button>

@@ -37,14 +37,14 @@ export default function TopicPage({ slug, onNavigate }: { slug: string; onNaviga
     window.addEventListener("twiller:post-created", created); return () => window.removeEventListener("twiller:post-created", created);
   }, [slug]);
   return <div className="min-h-screen">
-    <header className="border-b border-gray-800 p-4"><Link href="/explore" className="inline-flex min-h-11 items-center text-sm text-blue-400">← Discover topics</Link>
-      {topic ? <><h1 className="mb-2 text-2xl font-bold break-words">{topic.name}</h1><p className="mb-3 text-sm text-gray-500 break-words">{topic.description}</p><TopicFollowButton key={`${user?._id || "public"}:${topic._id}`} topic={topic} onChange={setTopic} /></> : <><h1 className="sr-only">Topic</h1>{loading && <RowSkeleton count={1} />}</>}
+    <header className="border-b border-border p-4"><Link href="/explore" className="inline-flex min-h-11 items-center text-sm text-primary">← Discover topics</Link>
+      {topic ? <><h1 className="mb-2 text-2xl font-bold text-text break-words">{topic.name}</h1><p className="mb-3 text-sm text-text-muted break-words">{topic.description}</p><TopicFollowButton key={`${user?._id || "public"}:${topic._id}`} topic={topic} onChange={setTopic} /></> : <><h1 className="sr-only">Topic</h1>{loading && <RowSkeleton count={1} />}</>}
     </header>
-    {error && <p role="alert" className="p-4 text-sm text-red-400">{error} <button type="button" className="min-h-11 underline" onClick={() => { if (!busy.current) void load(posts.length ? cursor : null, posts.length === 0, generation.current); }}>Retry topic</button></p>}
+    {error && <p role="alert" className="p-4 text-sm text-error">{error} <button type="button" className="min-h-11 underline" onClick={() => { if (!busy.current) void load(posts.length ? cursor : null, posts.length === 0, generation.current); }}>Retry topic</button></p>}
     {loading && !posts.length ? <PostSkeleton /> : <>
-      {!error && !loading && !posts.length && <p className="p-8 text-center text-gray-500">No conversations in this topic yet.</p>}
+      {!error && !loading && !posts.length && <p className="p-8 text-center text-text-muted">No conversations in this topic yet.</p>}
       {posts.map(post => <TweetCard key={post._id} tweet={post} onNavigate={onNavigate} onDeleted={id => setPosts(previous => previous.filter(item => item._id !== id))} onUpdated={updated => setPosts(previous => previous.map(item => item._id === updated._id ? updated : item))} />)}
-      {hasMore && <button type="button" disabled={loading} className="m-4 min-h-11 text-sm text-blue-400" onClick={() => { if (!busy.current && cursor) void load(cursor, false, generation.current); }}>{loading ? "Loading posts…" : "Load more posts"}</button>}
+      {hasMore && <button type="button" disabled={loading} className="m-4 min-h-11 text-sm text-primary" onClick={() => { if (!busy.current && cursor) void load(cursor, false, generation.current); }}>{loading ? "Loading posts…" : "Load more posts"}</button>}
     </>}
   </div>;
 }

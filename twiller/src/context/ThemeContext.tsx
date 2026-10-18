@@ -16,9 +16,25 @@ function resolveTheme(preference: ThemePreference): "light" | "dark" {
 
 function applyTheme(preference: ThemePreference) {
   const resolved = resolveTheme(preference);
-  document.documentElement.dataset.theme = resolved;
-  document.documentElement.classList.toggle("dark", resolved === "dark");
-  document.documentElement.style.colorScheme = resolved;
+  if (typeof document !== "undefined") {
+    if (document.documentElement) {
+      document.documentElement.dataset.theme = resolved;
+      document.documentElement.classList.toggle("dark", resolved === "dark");
+      document.documentElement.style.colorScheme = resolved;
+    }
+    if (typeof document.querySelector === "function") {
+      const themeColor = resolved === "dark" ? "#0B0F19" : "#FFFFFF";
+      let themeColorMeta = document.querySelector('meta[name="theme-color"]');
+      if (themeColorMeta) {
+        themeColorMeta.setAttribute("content", themeColor);
+      } else if (document.head && typeof document.createElement === "function") {
+        themeColorMeta = document.createElement("meta");
+        themeColorMeta.setAttribute("name", "theme-color");
+        themeColorMeta.setAttribute("content", themeColor);
+        document.head.appendChild(themeColorMeta);
+      }
+    }
+  }
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -58,4 +74,4 @@ export function useTheme() {
   return value;
 }
 
-export const themeBootstrapScript = `(function(){var p="system";try{var s=localStorage.getItem("${STORAGE_KEY}");if(s==="light"||s==="dark"||s==="system")p=s}catch(e){}var d=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";var t=p==="system"?d:p;var r=document.documentElement;r.dataset.theme=t;r.classList.toggle("dark",t==="dark");r.style.colorScheme=t})();`;
+export const themeBootstrapScript = `(function(){var p="system";try{var s=localStorage.getItem("${STORAGE_KEY}");if(s==="light"||s==="dark"||s==="system")p=s}catch(e){}var d=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";var t=p==="system"?d:p;var r=document.documentElement;r.dataset.theme=t;r.classList.toggle("dark",t==="dark");r.style.colorScheme=t;var c=t==="dark"?"#0B0F19":"#FFFFFF";var m=document.querySelector('meta[name="theme-color"]');if(m){m.setAttribute("content",c);}else{var meta=document.createElement("meta");meta.setAttribute("name","theme-color");meta.setAttribute("content",c);document.head.appendChild(meta);}})();`;

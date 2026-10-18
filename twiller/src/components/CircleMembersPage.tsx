@@ -24,12 +24,12 @@ export default function CircleMembersPage({ slug }: { slug: string }) {
     setName(""); setMembers([]); setCursor(null); setMore(false); void load(null, true, request);
     return () => { lifecycle.current++; };
   }, [load]);
-  return <div className="min-h-screen"><header className="border-b border-gray-800 p-4"><Link href={`/circle/${encodeURIComponent(slug)}`} className="inline-flex min-h-11 items-center text-blue-400">← Back to Circle</Link><h1 className="text-2xl font-bold break-words">{name ? `${name} members` : "Circle members"}</h1></header>
-    {error && <p role="alert" className="p-4 text-red-400">{error} <button type="button" className="min-h-11 underline" onClick={() => { if (!busy.current) void load(members.length ? cursor : null, members.length === 0, generation.current); }}>Retry members</button></p>}
+  return <div className="min-h-screen"><header className="border-b border-border p-4"><Link href={`/circle/${encodeURIComponent(slug)}`} className="inline-flex min-h-11 items-center text-primary">← Back to Circle</Link><h1 className="text-2xl font-bold text-text break-words">{name ? `${name} members` : "Circle members"}</h1></header>
+    {error && <p role="alert" className="p-4 text-error">{error} <button type="button" className="min-h-11 underline" onClick={() => { if (!busy.current) void load(members.length ? cursor : null, members.length === 0, generation.current); }}>Retry members</button></p>}
     {loading && !members.length ? <RowSkeleton /> : <>
-      {members.map(member => <div key={member.user._id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-gray-800 p-4"><Link href={`/${encodeURIComponent(member.user.username)}`} className="min-w-0 break-words text-blue-400 hover:underline">{member.user.displayName || member.user.username} · @{member.user.username}</Link>{member.role === "owner" && <span className="text-sm text-gray-400">Owner</span>}</div>)}
-      {!loading && !error && !members.length && <p className="p-8 text-center text-gray-500">No members yet.</p>}
-      {more && <button type="button" disabled={loading} className="m-4 min-h-11 text-blue-400" onClick={() => { if (!busy.current && cursor) void load(cursor, false, generation.current); }}>{loading ? "Loading…" : "Load more members"}</button>}
+      {members.map(member => <div key={member.user._id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-border p-4"><Link href={`/${encodeURIComponent(member.user.username)}`} className="min-w-0 break-words text-primary hover:underline">{member.user.displayName || member.user.username} · @{member.user.username}</Link>{member.role === "owner" && <span className="text-sm text-text-muted">Owner</span>}</div>)}
+      {!loading && !error && !members.length && <p className="p-8 text-center text-text-muted">No members yet.</p>}
+      {more && <button type="button" disabled={loading} className="m-4 min-h-11 text-primary" onClick={() => { if (!busy.current && cursor) void load(cursor, false, generation.current); }}>{loading ? "Loading…" : "Load more members"}</button>}
     </>}
   </div>;
 }

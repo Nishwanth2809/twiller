@@ -26,13 +26,13 @@ import BrandLogo from "../BrandLogo";
 function ComposerModal({ onClose, onPosted }: { onClose: () => void; onPosted: (t: any) => void }) {
   return (
     <AccessibleDialog open onClose={onClose} labelledBy="composer-dialog-title" closeOnBackdrop>
-      <div className="mt-8 w-full max-w-xl rounded-2xl border border-gray-800 bg-black text-white shadow-2xl">
+      <div className="mt-8 w-full max-w-xl rounded-2xl border border-border bg-surface text-text shadow-2xl">
         <div className="flex items-center justify-end px-4 pt-3 pb-1">
           <button
             type="button"
             autoFocus
             onClick={onClose}
-            className="min-h-11 min-w-11 rounded-full p-2 text-white transition-colors hover:bg-gray-900 hover:text-gray-300"
+            className="min-h-11 min-w-11 rounded-full p-2 text-text transition-colors hover:bg-surface-hover hover:text-text-muted"
             aria-label="Close composer"
           >
             ✕
@@ -190,7 +190,7 @@ const Mainlayout = ({ children }: { children: React.ReactNode }) => {
         </div>
 
         {/* Main content */}
-        <main id="main-content" tabIndex={-1} className="twiller-center flex-1 w-full min-w-0 pb-24 md:pb-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">
+        <main id="main-content" tabIndex={-1} className="twiller-center flex-1 w-full min-w-0 pb-24 md:pb-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary">
           {renderPage()}
         </main>
 

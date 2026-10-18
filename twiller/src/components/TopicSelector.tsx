@@ -29,19 +29,19 @@ export default function TopicSelector({ selected, onChange, disabled = false }: 
   return <div className="mt-3 text-sm" onKeyDown={event => { if (open && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); } }}>
     <div className="flex flex-wrap items-center gap-1.5"><span className="text-gray-500">Topics ({selected.length}/{MAX_POST_TOPICS})</span>
       {selected.map(topic => <button type="button" key={topic._id} disabled={disabled} aria-label={`Remove topic ${topic.name}`} className="twiller-topic-chip" onClick={() => onChange(selected.filter(item => item._id !== topic._id))}>{topic.name}<span aria-hidden="true">×</span></button>)}
-      <button type="button" ref={trigger} disabled={disabled} aria-expanded={open} aria-controls={`${id}-options`} className="min-h-11 rounded-lg px-2 text-blue-400 hover:bg-gray-900" onClick={() => { currentCursor.current = null; setOpen(value => !value); }}>+ Add topic</button>
+      <button type="button" ref={trigger} disabled={disabled} aria-expanded={open} aria-controls={`${id}-options`} className="min-h-11 rounded-lg px-2 text-primary hover:bg-surface-hover" onClick={() => { currentCursor.current = null; setOpen(value => !value); }}>+ Add topic</button>
     </div>
-    {open && <div id={`${id}-options`} className="mt-2 rounded-xl border border-gray-800 p-3">
-      <label className="block">Find a topic<input autoFocus maxLength={80} disabled={disabled} className="mt-1 w-full border border-gray-800 bg-gray-900 p-2 text-white" value={query} onChange={event => { currentCursor.current = null; setQuery(event.target.value); }} /></label>
-      <p className="mt-2 text-xs text-gray-500">Optional · Choose up to three topics.</p>
-      {selected.length >= MAX_POST_TOPICS && <p role="status" className="mt-2 text-xs text-gray-500">Three topics selected. Remove one to choose another.</p>}
+    {open && <div id={`${id}-options`} className="mt-2 rounded-xl border border-border p-3">
+      <label className="block text-text">Find a topic<input autoFocus maxLength={80} disabled={disabled} className="mt-1 w-full border border-border bg-surface p-2 text-text" value={query} onChange={event => { currentCursor.current = null; setQuery(event.target.value); }} /></label>
+      <p className="mt-2 text-xs text-text-muted">Optional · Choose up to three topics.</p>
+      {selected.length >= MAX_POST_TOPICS && <p role="status" className="mt-2 text-xs text-text-muted">Three topics selected. Remove one to choose another.</p>}
       {loading && !options.length ? <RowSkeleton count={2} /> : <div className="mt-2 max-h-52 overflow-y-auto">
-        {options.map(topic => <button type="button" key={topic._id} className="block min-h-11 w-full rounded-lg px-2 text-left hover:bg-gray-900 disabled:opacity-50" disabled={disabled || selected.some(item => item._id === topic._id) || selected.length >= MAX_POST_TOPICS} onClick={() => onChange(selectTopic(selected, topic))}>{topic.name}</button>)}
-        {!loading && !error && !options.length && <p className="py-3 text-gray-500">No matching topics.</p>}
+        {options.map(topic => <button type="button" key={topic._id} className="block min-h-11 w-full rounded-lg px-2 text-left hover:bg-surface-hover text-text disabled:opacity-50" disabled={disabled || selected.some(item => item._id === topic._id) || selected.length >= MAX_POST_TOPICS} onClick={() => onChange(selectTopic(selected, topic))}>{topic.name}</button>)}
+        {!loading && !error && !options.length && <p className="py-3 text-text-muted">No matching topics.</p>}
       </div>}
-      {error && <p role="alert" className="mt-2 text-red-400">Topics could not load. <button type="button" className="min-h-11 underline" disabled={loading || disabled} onClick={() => setRetry(value => value + 1)}>Retry topics</button></p>}
-      {more && <button type="button" className="min-h-11 text-blue-400" disabled={loading || disabled} onClick={() => { currentCursor.current = cursor; setLoadMore(value => value + 1); }}>{loading ? "Loading…" : "More topics"}</button>}
-      <button type="button" className="ml-3 min-h-11 text-gray-500 underline" onClick={close}>Done</button>
+      {error && <p role="alert" className="mt-2 text-error">Topics could not load. <button type="button" className="min-h-11 underline" disabled={loading || disabled} onClick={() => setRetry(value => value + 1)}>Retry topics</button></p>}
+      {more && <button type="button" className="min-h-11 text-primary" disabled={loading || disabled} onClick={() => { currentCursor.current = cursor; setLoadMore(value => value + 1); }}>{loading ? "Loading…" : "More topics"}</button>}
+      <button type="button" className="ml-3 min-h-11 text-text-muted underline" onClick={close}>Done</button>
     </div>}
   </div>;
 }
