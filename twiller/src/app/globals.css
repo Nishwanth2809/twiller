@@ -440,7 +440,7 @@ html .twiller-feed [data-slot="tabs-trigger"][data-state="active"]::after { cont
 .twiller-post:hover {
   background-color: var(--color-surface-hover) !important;
 }
-.twiller-mobile-nav { bottom: max(14px, env(safe-area-inset-bottom)); }
+.twiller-mobile-nav { position: fixed !important; bottom: max(12px, env(safe-area-inset-bottom)) !important; z-index: 50 !important; }
 .twiller-landing { background: var(--background) !important; gap: 32px; padding: 32px; }
 .twiller-landing-brand { max-width: 360px; padding: 32px; }
 .twiller-landing-brand .twiller-wordmark { font-size: 44px; }

@@ -206,7 +206,8 @@ const Mainlayout = ({ children }: { children: React.ReactNode }) => {
       {/* Mobile bottom navigation — floating rounded dock */}
       <nav
         aria-label="Primary navigation"
-        className="twiller-mobile-nav fixed inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[440px] bg-surface/90 backdrop-blur-xl border border-border/80 rounded-full shadow-2xl shadow-black/10 flex items-center justify-around py-1.5 px-2 z-40 md:hidden"
+        style={{ bottom: "max(12px, env(safe-area-inset-bottom))" }}
+        className="twiller-mobile-nav fixed bottom-3 inset-x-3 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[440px] bg-surface/95 backdrop-blur-xl border border-border/80 rounded-full shadow-2xl shadow-black/20 flex items-center justify-around py-1.5 px-2 z-50 md:hidden"
       >
         <button
           onClick={() => navigate("home")}
